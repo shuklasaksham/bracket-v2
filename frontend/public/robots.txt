@@ -1,0 +1,50 @@
+# robots.txt for https://use-bracket.com
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /app/
+Disallow: /login
+Disallow: /admin
+Disallow: /admin/
+Disallow: /project/
+Disallow: /r/
+Disallow: /api/
+
+# AI assistants & crawlers — allowed on public marketing pages.
+# Structured description for LLMs: https://use-bracket.com/llms.txt
+User-agent: GPTBot
+Allow: /
+Disallow: /app/
+Disallow: /admin/
+Disallow: /project/
+Disallow: /r/
+Disallow: /api/
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+Sitemap: https://use-bracket.com/sitemap.xml

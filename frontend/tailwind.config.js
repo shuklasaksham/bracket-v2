@@ -1,0 +1,165 @@
+/** @type {import('tailwindcss').Config} */
+// Bracket 2.0 design tokens — generated from the Figma file
+// "Bracket 2.0 — Product Design" (variables: color / dimension / type).
+// Every value resolves to a CSS variable in src/index.css so the token
+// source of truth stays in one place.
+const v = (name) => `var(--${name})`;
+
+module.exports = {
+  darkMode: ["class"],
+  content: ["./src/**/*.{js,jsx,ts,tsx}", "./public/index.html"],
+  theme: {
+    // Figma breakpoints: Mobile 390 · Tablet 768 · Small laptop 1024 ·
+    // Laptop 1280 · Desktop 1440. `sm` stays at 640 for the legacy screens.
+    screens: {
+      sm: "640px",
+      md: "768px",
+      lg: "1024px",
+      xl: "1280px",
+      "2xl": "1440px",
+    },
+    extend: {
+      colors: {
+        // ── Semantic tokens (use these in new code) ──────────────────────
+        app: "#08090a",
+        sidebar: v("bg-sidebar"),
+        surface: v("bg-surface"),
+        raised: v("bg-surface-raised"),
+        hover: v("bg-hover"),
+        selected: v("bg-selected"),
+        inverse: v("bg-inverse"),
+        "inverse-hover": v("bg-inverse-hover"),
+        overlay: v("bg-overlay"),
+        line: {
+          subtle: v("border-subtle"),
+          DEFAULT: v("border-default"),
+          strong: v("border-strong"),
+          // literal so opacity modifiers (border-line-control/60) work
+          control: "#6c7079",
+          focus: v("border-focus"),
+        },
+        fg: {
+          DEFAULT: "#f7f8f8",
+          secondary: v("text-secondary"),
+          tertiary: v("text-tertiary"),
+          disabled: v("text-disabled"),
+          inverse: v("text-inverse"),
+        },
+        // Status colors are literal hex (mirrors --status-*) so Tailwind
+        // opacity modifiers like border-danger/30 resolve.
+        warning: { DEFAULT: "#f59e0b", bg: "#2d1503" },
+        danger: { DEFAULT: "#f87171", bg: "#2b0a0a" },
+        success: { DEFAULT: "#22c55e", bg: "#052e16" },
+        info: { DEFAULT: "#60a5fa", bg: "#172554" },
+
+        // ── Legacy names (admin, client review, brief flow) remapped to the
+        //    new palette so those screens adopt the theme without JSX edits.
+        ink: v("text-primary"),
+        paper: v("bg-app"),
+        chalk: v("bg-surface"),
+        muted: v("text-secondary"),
+        faint: v("text-tertiary"),
+        signal: v("text-primary"),
+        signalHover: v("text-secondary"),
+        safe: v("status-success"),
+        background: v("bg-app"),
+        foreground: v("text-primary"),
+        border: v("border-default"),
+        input: v("bg-surface-raised"),
+        ring: v("focus-ring"),
+        primary: { DEFAULT: v("bg-inverse"), foreground: v("text-inverse") },
+        secondary: { DEFAULT: v("bg-surface-raised"), foreground: v("text-primary") },
+        destructive: { DEFAULT: v("status-danger"), foreground: v("text-primary") },
+        accent: { DEFAULT: v("bg-surface-raised"), foreground: v("text-primary") },
+        popover: { DEFAULT: v("bg-surface-raised"), foreground: v("text-primary") },
+        card: { DEFAULT: v("bg-surface"), foreground: v("text-primary") },
+        muted_: { DEFAULT: v("bg-surface-raised"), foreground: v("text-secondary") },
+        surface2: v("bg-surface-raised"),
+        surface3: "#1b1c20",
+        hairline: v("border-default"),
+      },
+      fontFamily: {
+        sans: ["Urbanist", "system-ui", "-apple-system", "sans-serif"],
+        display: ["Urbanist", "system-ui", "sans-serif"],
+        body: ["Urbanist", "system-ui", "sans-serif"],
+        mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
+      },
+      fontSize: {
+        // [size, { lineHeight, letterSpacing, fontWeight }] — Figma text styles
+        "display-s": ["26px", { lineHeight: "32px", letterSpacing: "-0.6px", fontWeight: "600" }],
+        "title-l": ["20px", { lineHeight: "26px", letterSpacing: "-0.3px", fontWeight: "600" }],
+        "title-m": ["16px", { lineHeight: "22px", letterSpacing: "-0.2px", fontWeight: "600" }],
+        "title-s": ["14px", { lineHeight: "20px", letterSpacing: "-0.1px", fontWeight: "600" }],
+        "body-l": ["15px", { lineHeight: "24px", letterSpacing: "-0.1px" }],
+        "body-m": ["14px", { lineHeight: "20px", letterSpacing: "-0.05px" }],
+        "body-s": ["12px", { lineHeight: "18px" }],
+        caption: ["12px", { lineHeight: "16px", fontWeight: "500" }],
+        "mono-s": ["12px", { lineHeight: "16px", letterSpacing: "-0.2px" }],
+        eyebrow: ["12px", { lineHeight: "16px", letterSpacing: "0.6px", fontWeight: "600" }],
+      },
+      spacing: {
+        "0.5": "2px",
+        "7": "28px",
+        nav: "240px",
+        panel: "400px",
+      },
+      borderRadius: {
+        none: "0",
+        xs: "2px",
+        sm: "4px",
+        DEFAULT: "6px",
+        md: "6px",
+        lg: "8px",
+        xl: "12px",
+        "2xl": "12px",
+        "3xl": "12px",
+        full: "9999px",
+      },
+      boxShadow: {
+        popover: "0 8px 24px rgba(0,0,0,0.5)",
+        overlay: "0 16px 48px rgba(0,0,0,0.6)",
+        focus: "0 0 0 2px #000, 0 0 0 4px #fff",
+        sm: "none",
+        DEFAULT: "none",
+        md: "none",
+        lg: "none",
+        brut: "none",
+        brutLg: "none",
+        brutBlue: "none",
+        brutDanger: "none",
+      },
+      transitionTimingFunction: {
+        // Figma motion spec: base / panels / sheets
+        out: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+      },
+      transitionDuration: {
+        fast: "120ms",
+        base: "200ms",
+        sheet: "280ms",
+      },
+      keyframes: {
+        "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
+        "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
+        "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+        "fade-up": { from: { opacity: "0", transform: "translateY(8px)" }, to: { opacity: "1", transform: "translateY(0)" } },
+        "scale-in": { from: { opacity: "0", transform: "scale(0.98)" }, to: { opacity: "1", transform: "scale(1)" } },
+        "slide-up": { from: { transform: "translateY(100%)" }, to: { transform: "translateY(0)" } },
+        "slide-in-right": { from: { transform: "translateX(100%)" }, to: { transform: "translateX(0)" } },
+        shimmer: { "0%": { backgroundPosition: "-200% 0" }, "100%": { backgroundPosition: "200% 0" } },
+        marquee: { from: { transform: "translateX(0)" }, to: { transform: "translateX(-50%)" } },
+      },
+      animation: {
+        "accordion-down": "accordion-down 200ms cubic-bezier(0.2,0.8,0.2,1)",
+        "accordion-up": "accordion-up 200ms cubic-bezier(0.2,0.8,0.2,1)",
+        "fade-in": "fade-in 200ms cubic-bezier(0.2,0.8,0.2,1)",
+        "fade-up": "fade-up 280ms cubic-bezier(0.2,0.8,0.2,1)",
+        "scale-in": "scale-in 200ms cubic-bezier(0.2,0.8,0.2,1)",
+        "slide-up": "slide-up 280ms cubic-bezier(0.2,0.8,0.2,1)",
+        "slide-in-right": "slide-in-right 280ms cubic-bezier(0.2,0.8,0.2,1)",
+        shimmer: "shimmer 1.6s linear infinite",
+        marquee: "marquee 40s linear infinite",
+      },
+    },
+  },
+  plugins: [require("tailwindcss-animate")],
+};

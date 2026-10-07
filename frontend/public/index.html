@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <script>
+          /* Clickjacking defense (frame-buster): if Bracket is loaded inside an
+             iframe by another site, break out to the top window. Backs up the
+             X-Frame-Options / CSP frame-ancestors headers set server-side. */
+          try { if (window.top !== window.self) { window.top.location = window.self.location.href; } } catch (e) { document.documentElement.style.display = "none"; }
+        </script>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+        <meta name="theme-color" content="#08090A" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+        <meta name="apple-mobile-web-app-title" content="Bracket" />
+        <link rel="icon" href="/brand/mark-white.png" type="image/png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/brand/mark-white.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/brand/mark-white.png" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+        <!--
+        manifest.json provides metadata used when your web app is installed on a
+        user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+        -->
+        <!--
+        Notice the use of %PUBLIC_URL% in the tags above.
+        It will be replaced with the URL of the `public` folder during the build.
+        Only files inside the `public` folder can be referenced from the HTML.
+
+        Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+        work correctly both with client-side routing and a non-root public URL.
+        Learn how to configure a non-root public URL by running `npm run build`.
+        -->
+        <title>Bracket — A memory for your business</title>
+        <meta name="description" content="Bracket is the AI decision workspace and decision OS for client projects. Paste a messy client brief — get scope, decisions, risks, timelines and client-ready documents in under a minute." />
+        <meta name="keywords" content="bracket, bracket app, use bracket, AI decision workspace, client OS, decision OS, decision engine, AI operating system, client operating system, client projects, project scoping AI, AI for client work" />
+        <meta name="author" content="Bracket" />
+        <link rel="canonical" href="https://use-bracket.com/" />
+        <link rel="alternate" type="text/plain" title="llms.txt" href="/llms.txt" />
+        <meta property="og:title" content="Bracket — A memory for your business" />
+        <meta property="og:description" content="Paste a messy client brief — get scope, decisions, risks, timelines and client-ready documents in under a minute." />
+        <meta property="og:url" content="https://use-bracket.com/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Bracket" />
+        <meta property="og:image" content="https://use-bracket.com/bracket-og.jpg" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Bracket — A memory for your business" />
+        <meta name="twitter:description" content="Paste a messy client brief — get scope, decisions, risks, timelines and client-ready documents in under a minute." />
+        <meta name="twitter:image" content="https://use-bracket.com/bracket-og.jpg" />
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": "https://use-bracket.com/#organization",
+              "name": "Bracket",
+              "url": "https://use-bracket.com/",
+              "logo": "https://use-bracket.com/bracket-og.jpg",
+              "description": "Bracket is project memory for client work — it connects the tools where a project already lives (Gmail, Slack, Figma, GitHub) and keeps one always-current record of scope, decisions, deadlines and deliverables."
+            },
+            {
+              "@type": "WebSite",
+              "@id": "https://use-bracket.com/#website",
+              "url": "https://use-bracket.com/",
+              "name": "Bracket",
+              "alternateName": ["Bracket App", "Bracket AI", "Bracket Client OS", "Bracket Project Memory"],
+              "publisher": { "@id": "https://use-bracket.com/#organization" }
+            },
+            {
+              "@type": "SoftwareApplication",
+              "@id": "https://use-bracket.com/#software",
+              "name": "Bracket",
+              "applicationCategory": "BusinessApplication",
+              "applicationSubCategory": "Project Management",
+              "operatingSystem": "Web",
+              "url": "https://use-bracket.com/",
+              "description": "Bracket is project memory for client work. Connect Gmail, Slack, Figma and GitHub and Bracket keeps one always-current record of a project's scope, requirements, decisions, deliverables and deadlines. It surfaces the one change that needs your attention, lets you review updates before they enter the record, ingests meeting notes and transcripts, and drafts client replies you can send from Gmail or Slack.",
+              "featureList": [
+                "Connect Gmail, Slack, Figma and GitHub via OAuth with automatic sync",
+                "AI-extracted project memory: scope, requirements, decisions, deliverables, deadlines",
+                "Change notifications with a review step before anything enters the record",
+                "Author attribution — see who requested each change",
+                "Meeting notes and transcript ingestion (paste or upload .txt/.md/.docx/.pdf)",
+                "AI-drafted client replies you can send from Gmail or Slack",
+                "Client-ready shareable project documents"
+              ],
+              "offers": {
+                "@type": "AggregateOffer",
+                "priceCurrency": "INR",
+                "lowPrice": "199",
+                "highPrice": "999",
+                "offerCount": "2",
+                "offers": [
+                  {
+                    "@type": "Offer",
+                    "name": "Monthly",
+                    "price": "999",
+                    "priceCurrency": "INR",
+                    "description": "For ongoing client work — up to 10 active projects, unlimited connected tools, live project memory and updates. Also available at $12/month."
+                  },
+                  {
+                    "@type": "Offer",
+                    "name": "Per project",
+                    "price": "199",
+                    "priceCurrency": "INR",
+                    "description": "A one-off single project that stays active for 60 days, with unlimited connected tools and live project memory. Also available at $2."
+                  }
+                ]
+              },
+              "publisher": { "@id": "https://use-bracket.com/#organization" }
+            },
+            {
+              "@type": "FAQPage",
+              "@id": "https://use-bracket.com/#faq",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "What exactly does Bracket do?",
+                  "acceptedAnswer": { "@type": "Answer", "text": "Bracket connects to the tools where your project already lives — Gmail, Slack, Figma, GitHub — and keeps one always-current record of scope, decisions, deadlines and deliverables. It shows you the one thing that needs your attention and can draft client replies for you." }
+                },
+                {
+                  "@type": "Question",
+                  "name": "How much does Bracket cost?",
+                  "acceptedAnswer": { "@type": "Answer", "text": "Two plans: Monthly at ₹999 (about $12) for ongoing client work with up to 10 active projects, or Per-project at ₹199 (about $2) for a single project that stays active for 60 days. Cancel anytime from Settings → Billing." }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Can I cancel anytime?",
+                  "acceptedAnswer": { "@type": "Answer", "text": "Yes. Cancel from Settings → Billing in one click. Your monthly plan simply won't renew; a per-project purchase stays active for its 60 days." }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Is my data private?",
+                  "acceptedAnswer": { "@type": "Answer", "text": "Only you can see your projects. Bracket connects the specific sources you select — not your whole account — and uses AI providers only to generate the outputs you ask for. We don't sell your data or use it for advertising." }
+                }
+              ]
+            }
+          ]
+        }
+        </script>
+        <style>#emergent-badge{display:none!important;visibility:hidden!important;}</style>
+        <!-- Critical inline style: paints the site background before the JS
+             bundle loads, so no white flash appears on hard reloads. -->
+        <style>html,body,#root{background:#08090A;min-height:100%;}</style>
+        <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
+        <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
+    </head>
+    <body>
+        <noscript>You need to enable JavaScript to run this app.</noscript>
+        <div id="root"></div>
+        <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+                <script>
+            !(function (t, e) {
+                var o, n, p, r;
+                e.__SV ||
+                    ((window.posthog = e),
+                    (e._i = []),
+                    (e.init = function (i, s, a) {
+                        function g(t, e) {
+                            var o = e.split(".");
+                            2 == o.length && ((t = t[o[0]]), (e = o[1])),
+                                (t[e] = function () {
+                                    t.push(
+                                        [e].concat(
+                                            Array.prototype.slice.call(
+                                                arguments,
+                                                0,
+                                            ),
+                                        ),
+                                    );
+                                });
+                        }
+                        ((p = t.createElement("script")).type =
+                            "text/javascript"),
+                            (p.crossOrigin = "anonymous"),
+                            (p.async = !0),
+                            (p.src =
+                                s.api_host.replace(
+                                    ".i.posthog.com",
+                                    "-assets.i.posthog.com",
+                                ) + "/static/array.js"),
+                            (r =
+                                t.getElementsByTagName(
+                                    "script",
+                                )[0]).parentNode.insertBefore(p, r);
+                        var u = e;
+                        for (
+                            void 0 !== a ? (u = e[a] = []) : (a = "posthog"),
+                                u.people = u.people || [],
+                                u.toString = function (t) {
+                                    var e = "posthog";
+                                    return (
+                                        "posthog" !== a && (e += "." + a),
+                                        t || (e += " (stub)"),
+                                        e
+                                    );
+                                },
+                                u.people.toString = function () {
+                                    return u.toString(1) + ".people (stub)";
+                                },
+                                o =
+                                    "init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(
+                                        " ",
+                                    ),
+                                n = 0;
+                            n < o.length;
+                            n++
+                        )
+                            g(u, o[n]);
+                        e._i.push([i, s, a]);
+                    }),
+                    (e.__SV = 1));
+            })(document, window.posthog || []);
+            posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs", {
+                api_host: "https://us.i.posthog.com",
+                person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well,
+                session_recording: {
+                    recordCrossOriginIframes: true,
+                    capturePerformance: false,
+                },
+            });
+        </script>
+    </body>
+</html>

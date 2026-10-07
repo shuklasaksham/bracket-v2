@@ -1,0 +1,20 @@
+{
+  "name": "Bracket — AI Decision Workspace",
+  "short_name": "Bracket",
+  "description": "Paste a messy client brief — get scope, decisions, risks and client-ready documents in under a minute.",
+  "id": "/",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08090A",
+  "theme_color": "#08090A",
+  "icons": [
+    { "src": "/bracket-logo-new.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/bracket-logo-new.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/bracket-logo-new.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "related_applications": [
+    { "platform": "webapp", "url": "https://use-bracket.com/manifest.json" }
+  ]
+}

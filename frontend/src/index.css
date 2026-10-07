@@ -1,0 +1,188 @@
+@import url("https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "./styles/legacy.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   BRACKET 2.0 — design tokens (from Figma variables)
+   Monochrome · near-black · hairline borders · semantic status only.
+   ============================================================ */
+:root {
+  /* Primitives */
+  --gray-1000: #08090a;
+  --gray-950: #0c0d0f;
+  --gray-900: #101113;
+  --gray-850: #15161a;
+  --gray-800: #1b1c20;
+  --gray-750: #222328;
+  --gray-700: #2b2d32;
+  --gray-600: #3a3c42;
+  --gray-500: #5a5d65;
+  --gray-450: #6c7079;
+  --gray-400: #8a8f98;
+  --gray-350: #a3a7af;
+  --gray-300: #c3c6cc;
+  --gray-200: #e1e3e7;
+  --gray-100: #edeef0;
+  --gray-0: #f7f8f8;
+
+  /* Semantic — backgrounds */
+  --bg-app: var(--gray-1000);
+  --bg-sidebar: var(--gray-950);
+  --bg-surface: var(--gray-900);
+  --bg-surface-raised: var(--gray-850);
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-selected: rgba(255, 255, 255, 0.06);
+  --bg-inverse: var(--gray-0);
+  --bg-inverse-hover: var(--gray-200);
+  --bg-overlay: rgba(8, 9, 10, 0.72);
+
+  /* Semantic — borders */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-control: var(--gray-450);
+  --border-focus: var(--gray-300);
+  --focus-ring: var(--gray-0);
+
+  /* Semantic — text */
+  --text-primary: var(--gray-0);
+  --text-secondary: var(--gray-300);
+  --text-tertiary: var(--gray-350);
+  --text-disabled: var(--gray-500);
+  --text-inverse: var(--gray-1000);
+
+  /* Semantic — status (never color-only: always paired with icon + label) */
+  --status-warning: #f59e0b;
+  --status-warning-bg: #2d1503;
+  --status-danger: #f87171;
+  --status-danger-bg: #2b0a0a;
+  --status-success: #22c55e;
+  --status-success-bg: #052e16;
+  --status-info: #60a5fa;
+  --status-info-bg: #172554;
+
+  /* Motion (Figma: Foundations → Motion) */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-sheet: 280ms;
+
+  /* ---- Legacy variable remap (admin · client review · brief flow) ---- */
+  --bg: var(--bg-app);
+  --surface: var(--bg-surface);
+  --surface-1: var(--bg-surface);
+  --surface-2: var(--bg-surface-raised);
+  --surface-3: var(--gray-800);
+  --surface-hover: var(--bg-surface-raised);
+  --surface-active: var(--gray-800);
+  --hairline: var(--border-default);
+  --hairline-strong: var(--border-strong);
+  --hairline-hover: rgba(255, 255, 255, 0.22);
+  --text: var(--text-primary);
+  --text-2: var(--text-secondary);
+  --text-3: var(--text-tertiary);
+  --text-4: var(--text-disabled);
+  --accent: var(--gray-200);
+  --accent-2: #ffffff;
+  --success: var(--status-success);
+  --warning: var(--status-warning);
+  --danger: var(--status-danger);
+  --info: var(--status-info);
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: "Urbanist", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    font-size: 14px;
+    line-height: 20px;
+  }
+  ::selection {
+    background: rgba(255, 255, 255, 0.18);
+  }
+  /* Visible focus on every interactive element (WCAG 2.2 AA) */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Scoped root for the new UI so legacy global rules never leak in. */
+  .bk {
+    font-family: "Urbanist", system-ui, -apple-system, sans-serif;
+    color: var(--text-primary);
+    letter-spacing: -0.05px;
+  }
+  .bk h1,
+  .bk h2,
+  .bk h3,
+  .bk h4 {
+    font-family: inherit;
+    letter-spacing: inherit;
+  }
+  .bk button {
+    font-family: inherit;
+  }
+  .eyebrow {
+    @apply text-eyebrow uppercase text-fg-tertiary;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  .scroll-pane {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  }
+  .scroll-pane::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-pane::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, var(--bg-surface) 0%, var(--bg-surface-raised) 50%, var(--bg-surface) 100%);
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded;
+  }
+  .prose-bk p + p {
+    margin-top: 12px;
+  }
+  .safe-bottom {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
