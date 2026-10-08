@@ -174,7 +174,7 @@ export default function Review() {
             <Segmented className="mt-4 w-full" value={tab} onChange={setTab} options={[{ value: "proposals", label: `Proposed updates · ${total}` }, { value: "source", label: r.trigger.provider === "gmail" ? "Source email" : "Source message" }]} />
             <div className="mt-3 space-y-2">{banners}</div>
           </div>
-          <AnimatePresence mode="wait" initial={false}>
+          <AnimatePresence mode="popLayout" initial={false}>
             <motion.div key={tab} initial={{ opacity: 0, x: tab === "source" ? 16 : -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={T.base}>
               {tab === "proposals" ? <div className="mt-2 border-t border-line-subtle">{proposals}</div> : <div className="px-4 py-4"><SourceMessage trigger={r.trigger} bare /></div>}
             </motion.div>

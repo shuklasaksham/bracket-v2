@@ -45,6 +45,7 @@ export const v2 = {
   markIncorrect: (wid, mid, reason) => p(`${W(wid)}/memory/${mid}/incorrect`, { reason }),
   restoreMemory: (wid, mid) => p(`${W(wid)}/memory/${mid}/restore`),
   people: (wid) => g(`${W(wid)}/people`),
+  evidence: (wid, eid) => g(`${W(wid)}/evidence/${eid}`),
   person: (wid, pid) => g(`${W(wid)}/people/${pid}`),
 
   /* reviews */

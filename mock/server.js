@@ -303,6 +303,30 @@ on("GET", "/api/v2/w/:wid/people/:pid", ({ p }) => {
   return { ...pe, open, recent };
 });
 on("GET", "/api/v2/w/:wid/people", () => ({ people: S.people }));
+/* Source viewer — the message/note an evidence quote came from, in context. */
+on("GET", "/api/v2/w/:wid/evidence/:eid", ({ p }) => {
+  let ev = null; let owner = null;
+  S.memory.forEach((m) => (m.evidence || []).forEach((e) => { if (e.id === p.eid) { ev = e; owner = m; } }));
+  if (!ev) throw new HttpError(404, "Evidence not found");
+  const from = S.memory.filter((m) => (m.evidence || []).some((e) => e.quote === ev.quote)).map((m) => ({ id: m.id, category: S.categories.find((c) => c.key === m.category)?.label || m.category, text: m.short ? `${m.title}` : m.title }));
+  const at = new Date(ev.at);
+  const hm = (d) => d.toTimeString().slice(0, 5);
+  if (ev.provider === "slack") {
+    const before = new Date(at.getTime() - 8 * 60e3); const after = new Date(at.getTime() + 11 * 60e3);
+    return { provider: "slack", label: "Slack", title: ev.where, meta: `Thread · ${at.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${hm(before)}–${hm(after)} · 6 messages`, link: "https://slack.com",
+      messages: [
+        { author: "Sarah Chen", at: before.toISOString(), text: "Can we see mobile before the review on Monday?" },
+        { author: ev.author, at: ev.at, text: ev.quote, highlight: true },
+        { author: "James Park", at: after.toISOString(), text: "👍 that works for us" },
+      ], memory_from: from };
+  }
+  if (ev.provider === "notes") {
+    const note = (S.sources.find((s) => s.provider === "notes")?.notes || []).find((n) => n.id === ev.ref_id);
+    return { provider: "notes", label: "Note", title: ev.where, meta: `${at.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · added by ${ev.author}`, note: note ? { body: note.body, highlight: ev.quote } : { body: ev.quote, highlight: ev.quote }, memory_from: from };
+  }
+  return { provider: ev.provider, label: ev.provider === "gmail" ? "Email" : "Source", title: ev.where, meta: `${ev.author} · ${at.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${hm(at)}`, link: "https://mail.google.com",
+    messages: [{ author: ev.author, at: ev.at, text: ev.quote, highlight: true }], memory_from: from };
+});
 
 /* reviews */
 on("GET", "/api/v2/w/:wid/reviews", ({ p }) => ({ reviews: (dataFor(p.wid).reviews || []).filter((r) => r.status === "pending").map((r) => ({ id: r.id, title: r.title, label: r.label, kind: r.kind, count: r.proposals.length, at: r.detected.at, saved: !!r.saved })) }));
