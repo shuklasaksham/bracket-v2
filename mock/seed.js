@@ -58,7 +58,7 @@ function build() {
         { id: "t2", subject: "Kickoff recap — Acme Finance", from: "Sarah Chen", messages: 6, memories: 8 },
         { id: "t3", subject: "Proposal — Acme Finance website", from: "James Park", messages: 9, memories: 6 },
       ],
-      auto_include: { enabled: true, domain: "acmefinance.com" },
+      auto_include: { enabled: true, label: "Automatically include new threads with @acmefinance.com", help: "New threads from this domain are read without asking. You can still stop reading any thread." },
       permissions: { read: true, send: true },
       learned: { total: 23, by: { scope: 4, decision: 5, commitment: 3, requirement: 4, person: 7 }, corroborated: 9 },
       activity: [
@@ -67,10 +67,10 @@ function build() {
         { at: d(-5, "11:02"), text: "Connected · first sync read 23 messages from Sep 10 onward" },
       ],
       candidates: [
-        { id: "t4", subject: "Brand assets", from: "Sarah Chen", messages: 2, at: d(-8, "15:10") },
-        { id: "t5", subject: "Invoice #0042", from: "Acme Finance AP", messages: 1, at: d(-3, "12:00") },
-        { id: "t6", subject: "Webflow staging link", from: "Dev Patel", messages: 4, at: d(-2, "17:30") },
-        { id: "t7", subject: "Testimonials — first draft", from: "Lena Torres", messages: 3, at: d(-1, "11:45") },
+        { id: "t4", subject: "Brand assets", from: "Sarah Chen", messages: 3, at: d(-8, "15:10"), suggested: true },
+        { id: "t6", subject: "Re: Testimonials for homepage", from: "Sarah Chen", messages: 4, at: d(-2, "11:00"), suggested: true },
+        { id: "t5", subject: "Invoice #2041 — Acme Finance", from: "Accounts", messages: 2, at: d(-7, "12:00") },
+        { id: "t8", subject: "Webflow seat for Acme", from: "James Park", messages: 1, at: d(-5, "11:05") },
       ],
     },
     {
@@ -78,15 +78,16 @@ function build() {
       status: "syncing", progress: { done: 1204, total: 3880 }, last_sync_at: mins(4), messages: 1204, health: "ok",
       reads_summary: "#acme-redesign",
       channels: [
-        { id: "C1", name: "#acme-redesign", messages: 1204, memories: 12, members: 6 },
+        { id: "C1", name: "#acme-redesign", messages: 1204, memories: 11, members: 6, meta: "6 members · last 90 days" },
       ],
       candidates: [
-        { id: "C2", name: "#acme-dev", messages: 382, members: 3 },
-        { id: "C3", name: "#general", messages: 9100, members: 24 },
-        { id: "C4", name: "#design-crit", messages: 640, members: 8 },
+        { id: "C2", name: "#acme-dev", messages: 382, members: 3, meta: "3 members · active yesterday", mentions: true },
+        { id: "C3", name: "#general", messages: 9100, members: 42, meta: "42 members" },
+        { id: "C4", name: "#design-crit", messages: 640, members: 12, meta: "12 members" },
       ],
+      auto_include: { enabled: true, label: "Automatically include new channels named #acme-*", help: "New matching channels are read without asking. Direct messages are never read." },
       permissions: { read: true, send: true },
-      learned: { total: 12, by: { scope: 1, decision: 3, commitment: 2, requirement: 3, person: 3 }, corroborated: 4 },
+      learned: { total: 11, by: { scope: 1, decision: 3, commitment: 2, requirement: 3, person: 3 }, corroborated: 4 },
       activity: [
         { at: mins(4), text: "Syncing history · 1,204 of 3,880 messages" },
         { at: d(-1, "10:20"), text: "Read 38 messages → 1 decision found" },
@@ -103,6 +104,7 @@ function build() {
         { id: "n2", title: "Performance & SEO review", at: d(-3, "15:20"), by: "Maya Rao", memories: 3, attendees: "3 attendees",
           body: "Lighthouse 90+ on mobile, schema for reviews, lazy-load hero imagery. Webflow CMS for testimonials." },
       ],
+      auto_include: { enabled: true, label: "Import meeting transcripts automatically", help: "Coming soon: connect a meeting recorder. For now, paste transcripts." },
       permissions: { read: true, send: false },
       learned: { total: 9, by: { scope: 1, decision: 2, commitment: 2, requirement: 3, person: 1 }, corroborated: 3 },
       activity: [

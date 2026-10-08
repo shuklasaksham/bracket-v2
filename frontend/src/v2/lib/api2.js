@@ -87,11 +87,14 @@ export const v2 = {
   reconnectSource: (wid, sid) => p(`${W(wid)}/sources/${sid}/reconnect`),
   reconnected: (wid, sid) => p(`${W(wid)}/sources/${sid}/reconnected`),
   disconnectSource: (wid, sid, keep_memory) => p(`${W(wid)}/sources/${sid}/disconnect`, { keep_memory }),
+  undoDisconnect: (wid, sid) => p(`${W(wid)}/sources/${sid}/undo-disconnect`),
+  sourceCandidates: (wid, sid) => g(`${W(wid)}/sources/${sid}/candidates`),
+  itemImpact: (wid, sid, tid) => g(`${W(wid)}/sources/${sid}/items/${tid}/impact`),
   addThreads: (wid, sid, ids) => p(`${W(wid)}/sources/${sid}/threads`, { ids }),
   stopReading: (wid, sid, tid, keep) => del(`${W(wid)}/sources/${sid}/threads/${tid}`, { keep: keep ? "1" : "0" }),
   candidates: (wid, provider) => g(`${W(wid)}/sources/candidates/${provider}`),
   addSource: (wid, provider, ids) => p(`${W(wid)}/sources/add`, { provider, ids }),
-  addNote: (wid, title, text) => p(`${W(wid)}/notes`, { title, text }),
+  addNote: (wid, title, text, people) => p(`${W(wid)}/notes`, { title, text, people }),
   acceptNote: (wid, nid, items) => p(`${W(wid)}/notes/${nid}/accept`, { items }),
 
   /* files */
@@ -99,6 +102,7 @@ export const v2 = {
   file: (wid, fid) => g(`${W(wid)}/files/${fid}`),
   uploadFile: (wid, meta) => p(`${W(wid)}/files`, meta),
   deleteFile: (wid, fid, keep) => del(`${W(wid)}/files/${fid}`, { keep: keep ? "1" : "0" }),
+  replaceFile: (wid, fid, meta) => p(`${W(wid)}/files/${fid}/replace`, meta),
 
   /* members */
   members: (wid) => g(`${W(wid)}/members`),

@@ -528,89 +528,162 @@ on("POST", "/api/v2/w/:wid/timeline/:eid/undo-restore", ({ p }) => {
 on("POST", "/api/v2/w/:wid/timeline/export", ({ body }) => ({ ok: true, format: body.format || "csv", rows: S.events.length, url: null, email: S.me.email }));
 
 /* sources */
+const srcOf = (sid) => { const s = S.sources.find((x) => x.id === sid); if (!s) throw new HttpError(404, "Source not found"); return s; };
+const memFromSource = (sid) => S.memory.filter((m) => m.status === "current" && (m.evidence || []).some((e) => e.source_id === sid));
+const onlyFrom = (sid) => memFromSource(sid).filter((m) => (m.evidence || []).every((e) => e.source_id === sid));
+const listOf = (s) => s.threads || s.channels || s.notes || [];
 on("GET", "/api/v2/w/:wid/sources", ({ p }) => ({ sources: (dataFor(p.wid).sources || []).map(sourceLite), connectors: S.connectors }));
-on("GET", "/api/v2/w/:wid/sources/:sid", ({ p }) => { const s = S.sources.find((x) => x.id === p.sid); if (!s) throw new HttpError(404, "Source not found"); return s; });
-on("PATCH", "/api/v2/w/:wid/sources/:sid", ({ p, body }) => { const s = S.sources.find((x) => x.id === p.sid); if (body.auto_include) Object.assign(s.auto_include, body.auto_include); if (body.permissions) Object.assign(s.permissions, body.permissions); return s; });
-on("POST", "/api/v2/w/:wid/sources/:sid/sync", ({ p }) => { const s = S.sources.find((x) => x.id === p.sid); s.status = "syncing"; s.progress = { done: 0, total: 12 }; setTimeout(() => { s.status = "synced"; delete s.progress; s.last_sync_at = new Date().toISOString(); }, 3500); return s; });
-on("POST", "/api/v2/w/:wid/sources/:sid/pause", ({ p }) => { const s = S.sources.find((x) => x.id === p.sid); s.status = "paused"; s.paused_at = new Date().toISOString(); s.activity.unshift({ at: s.paused_at, text: "Syncing paused by Maya" }); return s; });
-on("POST", "/api/v2/w/:wid/sources/:sid/resume", ({ p }) => { const s = S.sources.find((x) => x.id === p.sid); s.status = "syncing"; s.progress = { done: 0, total: 6 }; s.catching_up = { since: s.paused_at, new_messages: 6 }; delete s.paused_at; setTimeout(() => { s.status = "synced"; delete s.progress; delete s.catching_up; s.last_sync_at = new Date().toISOString(); }, 4000); return s; });
-on("POST", "/api/v2/w/:wid/sources/:sid/reconnect", ({ p }) => { const s = S.sources.find((x) => x.id === p.sid); return { url: `/oauth-mock?provider=${s.provider}&sid=${s.id}` }; });
-on("POST", "/api/v2/w/:wid/sources/:sid/reconnected", ({ p }) => {
-  const s = S.sources.find((x) => x.id === p.sid); Object.assign(s, { status: "syncing", health: "ok", error: null, progress: { done: 0, total: 11 }, catching_up: { since: s.disconnected_at || d(-1), new_messages: 11 } });
-  S.attention = S.attention.filter((a) => a.action?.target !== s.id);
-  setTimeout(() => { s.status = "synced"; delete s.progress; delete s.catching_up; s.last_sync_at = new Date().toISOString(); }, 4000); return s;
+on("GET", "/api/v2/w/:wid/sources/:sid", ({ p }) => {
+  const s = srcOf(p.sid);
+  const learned = memFromSource(s.id);
+  return { ...s, impact: { total: s.learned?.total ?? learned.length, only_here: s.provider === "gmail" ? 14 : onlyFrom(s.id).length } };
 });
-on("POST", "/api/v2/w/:wid/sources/:sid/disconnect", ({ p, body }) => {
-  const s = S.sources.find((x) => x.id === p.sid);
-  Object.assign(s, { status: "disconnected", disconnected_at: new Date().toISOString(), kept_memory: body.keep_memory !== false });
-  if (body.keep_memory === false) S.memory = S.memory.filter((m) => !(m.evidence || []).every((e) => e.source_id === s.id));
-  S.events.unshift({ id: uid("ev"), at: new Date().toISOString(), kind: "source_disconnected", title: `${s.label} disconnected`, actor: { provider: s.provider, label: "Maya Rao" }, meta: body.keep_memory === false ? "Learned memory removed" : "Learned memory kept", system: true });
+on("GET", "/api/v2/w/:wid/sources/:sid/items/:tid/impact", ({ p }) => {
+  const s = srcOf(p.sid); const t = listOf(s).find((x) => x.id === p.tid);
+  const total = t?.memories ?? 0; const only = Math.min(2, total);
+  return { title: t?.subject || t?.name || t?.title, from: t?.from, messages: t?.messages, total, supported_elsewhere: total - only, only_here: only };
+});
+on("PATCH", "/api/v2/w/:wid/sources/:sid", ({ p, body }) => { const s = srcOf(p.sid); if (body.auto_include) s.auto_include = { ...(s.auto_include || {}), ...body.auto_include }; if (body.permissions) Object.assign(s.permissions, body.permissions); return s; });
+on("POST", "/api/v2/w/:wid/sources/:sid/sync", ({ p }) => {
+  const s = srcOf(p.sid); const prev = s.status;
+  s.status = "checking"; s.checking_text = s.provider === "slack" ? "Checking for new messages…" : s.provider === "notes" ? "Re-reading notes…" : "Checking for new emails…";
+  setTimeout(() => { s.status = prev === "syncing" ? "syncing" : "synced"; delete s.checking_text; s.last_sync_at = new Date().toISOString(); s.activity.unshift({ at: s.last_sync_at, text: "Checked for new messages → nothing new" }); }, 2800);
   return s;
 });
+on("POST", "/api/v2/w/:wid/sources/:sid/pause", ({ p }) => { const s = srcOf(p.sid); s.status = "paused"; s.paused_at = new Date().toISOString(); s.paused_by = "you"; s.activity.unshift({ at: s.paused_at, text: "Syncing paused by Maya" }); return s; });
+on("POST", "/api/v2/w/:wid/sources/:sid/resume", ({ p }) => {
+  const s = srcOf(p.sid); s.status = "catching_up"; s.catching_up = { since: s.paused_at || d(-1), total: 6, done: 0 }; delete s.paused_at;
+  const iv = setInterval(() => { s.catching_up.done += 1; if (s.catching_up.done >= s.catching_up.total) { clearInterval(iv); s.status = "synced"; delete s.catching_up; s.last_sync_at = new Date().toISOString(); } }, 700);
+  return s;
+});
+on("POST", "/api/v2/w/:wid/sources/:sid/reconnect", ({ p }) => { const s = srcOf(p.sid); return { url: `/w/${p.wid}/sources/${s.id}?oauth=1` }; });
+on("POST", "/api/v2/w/:wid/sources/:sid/reconnected", ({ p }) => {
+  const s = srcOf(p.sid); const since = s.disconnected_at || d(-1, "08:02");
+  Object.assign(s, { status: "catching_up", health: "ok", error: null, catching_up: { since, total: 18, done: 6 }, reconnected_at: new Date().toISOString() });
+  delete s.disconnected_at;
+  S.attention = S.attention.filter((a) => a.action?.target !== s.id);
+  S.events.unshift({ id: uid("ev"), at: new Date().toISOString(), kind: "source_reconnected", title: `${s.label} reconnected`, actor: { provider: s.provider, label: "Maya Rao" }, meta: "Catching up on 18 emails", system: true, source: s.provider });
+  const iv = setInterval(() => { s.catching_up.done += 3; if (s.catching_up.done >= s.catching_up.total) { clearInterval(iv); s.status = "synced"; delete s.catching_up; s.last_sync_at = new Date().toISOString(); } }, 1500);
+  return s;
+});
+on("POST", "/api/v2/w/:wid/sources/:sid/disconnect", ({ p, body }) => {
+  const s = srcOf(p.sid);
+  const keep = body.keep_memory !== false;
+  const before = JSON.parse(JSON.stringify({ s, memory: S.memory }));
+  Object.assign(s, { status: "disconnected", disconnected_at: new Date().toISOString(), kept_memory: keep });
+  if (!keep) S.memory = S.memory.filter((m) => !(m.evidence || []).length || !(m.evidence || []).every((e) => e.source_id === s.id));
+  S.events.unshift({ id: uid("ev"), at: new Date().toISOString(), kind: "source_disconnected", title: `${s.label} disconnected`, actor: { provider: s.provider, label: "Maya Rao" }, meta: keep ? "Learned memory kept" : "Memory learned only from this source removed", system: true });
+  undoStack[`disc_${s.id}`] = before;
+  return { ...s, kept: keep ? (s.learned?.total || 0) : 0, removed: keep ? 0 : (s.provider === "gmail" ? 14 : onlyFrom(s.id).length) };
+});
+on("POST", "/api/v2/w/:wid/sources/:sid/undo-disconnect", ({ p }) => {
+  const snap = undoStack[`disc_${p.sid}`]; if (!snap) throw new HttpError(409, "Nothing to undo.");
+  const i = S.sources.findIndex((x) => x.id === p.sid); S.sources[i] = snap.s; S.memory = snap.memory; delete undoStack[`disc_${p.sid}`]; return S.sources[i];
+});
+on("GET", "/api/v2/w/:wid/sources/:sid/candidates", ({ p }) => {
+  const s = srcOf(p.sid);
+  if (s.provider === "slack") return { kind: "channels", account: "Northlight Studio", items: [
+    { id: "C1", name: "#acme-redesign", meta: "6 members · active today", badge: "Mentions Acme", connected: true },
+    ...s.candidates.map((c) => ({ id: c.id, name: c.name, meta: c.meta || `${c.members} members${c.active ? ` · active ${c.active}` : ""}`, badge: c.mentions ? "Mentions Acme" : null, suggested: !!c.mentions })),
+  ] };
+  return { kind: "threads", account: s.account, suggest_label: "Mention Acme Finance", items: s.candidates.map((c) => ({ id: c.id, name: c.subject, meta: `${c.from} · ${c.messages} msg${c.messages === 1 ? "" : "s"} · ${new Date(c.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, messages: c.messages, suggested: !!c.suggested })) };
+});
 on("POST", "/api/v2/w/:wid/sources/:sid/threads", ({ p, body }) => {
-  const s = S.sources.find((x) => x.id === p.sid); const ids = new Set(body.ids || []);
-  const list = s.threads || s.channels; const pick = s.candidates.filter((c) => ids.has(c.id));
-  pick.forEach((c) => list.push({ ...c, memories: 0, reading: true })); s.candidates = s.candidates.filter((c) => !ids.has(c.id));
-  setTimeout(() => list.forEach((t) => { if (t.reading) { t.reading = false; t.memories = 2; } }), 4000);
+  const s = srcOf(p.sid); const ids = new Set(body.ids || []);
+  const key = s.threads ? "threads" : "channels";
+  const pick = s.candidates.filter((c) => ids.has(c.id));
+  pick.forEach((c) => s[key].push({ id: c.id, subject: c.subject, name: c.name, from: c.from, messages: c.messages, members: c.members, memories: 0, reading: true }));
+  s.candidates = s.candidates.filter((c) => !ids.has(c.id));
+  setTimeout(() => s[key].forEach((t) => { if (t.reading) { t.reading = false; t.memories = 2; } }), 4500);
   return s;
 });
 on("DELETE", "/api/v2/w/:wid/sources/:sid/threads/:tid", ({ p, q }) => {
-  const s = S.sources.find((x) => x.id === p.sid); const key = s.threads ? "threads" : "channels";
-  const t = s[key].find((x) => x.id === p.tid); s[key] = s[key].filter((x) => x.id !== p.tid); s.candidates.unshift(t);
-  if (q.keep === "0") S.memory = S.memory.filter((m) => !(m.evidence || []).some((e) => e.ref_id === p.tid));
+  const s = srcOf(p.sid); const key = s.threads ? "threads" : "channels";
+  const t = s[key].find((x) => x.id === p.tid); s[key] = s[key].filter((x) => x.id !== p.tid);
+  if (t) s.candidates.unshift({ ...t, at: new Date().toISOString() });
+  S.events.unshift({ id: uid("ev"), at: new Date().toISOString(), kind: "source_scope", title: `Stopped reading “${t?.subject || t?.name}”`, actor: { provider: s.provider, label: "Maya Rao" }, meta: q.keep === "0" ? "2 memories removed" : "Memories kept, marked “source removed”", system: true });
   return s;
 });
 on("POST", "/api/v2/w/:wid/sources/connect", ({ body }) => ({ url: `/oauth-mock?provider=${body.provider}` }));
 on("GET", "/api/v2/w/:wid/sources/candidates/:provider", ({ p }) => {
-  if (p.provider === "slack") return { account: "Northlight Studio", items: [{ id: "C1", name: "#acme-redesign", meta: "1,204 messages · 6 members", connected: true }, { id: "C2", name: "#acme-dev", meta: "382 messages · 3 members", suggested: true }, { id: "C3", name: "#general", meta: "9,100 messages · 24 members" }, { id: "C4", name: "#design-crit", meta: "640 messages · 8 members" }] };
-  return { account: "maya@northlight.studio", items: S.sources[0]?.candidates?.map((c) => ({ id: c.id, name: c.subject, meta: `${c.from} · ${c.messages} messages` })) || [] };
+  if (p.provider === "slack") {
+    const s = S.sources.find((x) => x.provider === "slack");
+    return { kind: "channels", account: "Northlight Studio", items: [{ id: "C1", name: "#acme-redesign", meta: "6 members · active today", badge: "Mentions Acme", connected: !!s?.channels?.find((c) => c.id === "C1"), suggested: true }, ...(s?.candidates || []).map((c) => ({ id: c.id, name: c.name, meta: c.meta || `${c.members} members`, badge: c.mentions ? "Mentions Acme" : null, suggested: !!c.mentions }))] };
+  }
+  const g = S.sources.find((x) => x.provider === "gmail");
+  return { kind: "threads", account: "maya@northlight.studio", items: (g?.candidates || []).map((c) => ({ id: c.id, name: c.subject, meta: `${c.from} · ${c.messages} msgs`, suggested: !!c.suggested })) };
 });
 on("POST", "/api/v2/w/:wid/sources/add", ({ body }) => {
-  if (body.provider === "slack") { const s = S.sources.find((x) => x.provider === "slack"); (body.ids || []).forEach((id) => { if (!s.channels.find((c) => c.id === id)) { const c = s.candidates.find((x) => x.id === id); if (c) { s.channels.push({ ...c, memories: 0, reading: true }); s.candidates = s.candidates.filter((x) => x.id !== id); } } }); return { ok: true, source_id: s.id }; }
-  return { ok: true };
+  const prov = body.provider;
+  let s = S.sources.find((x) => x.provider === prov);
+  if (prov === "slack" && s) {
+    (body.ids || []).forEach((id) => { if (id === "C1" || s.channels.find((c) => c.id === id)) return; const c = s.candidates.find((x) => x.id === id); if (c) { s.channels.push({ id: c.id, name: c.name, members: c.members, messages: c.messages || 0, memories: 0, reading: true }); s.candidates = s.candidates.filter((x) => x.id !== id); } });
+    s.status = "syncing"; s.progress = { done: 0, total: 420 };
+    const iv = setInterval(() => { s.progress.done = Math.min(s.progress.total, s.progress.done + 70); if (s.progress.done >= s.progress.total) { clearInterval(iv); s.status = "synced"; delete s.progress; s.channels.forEach((c) => { c.reading = false; }); } }, 900);
+    return { ok: true, source_id: s.id, added: (body.ids || []).length };
+  }
+  return { ok: true, source_id: s?.id || null, oauth: !s };
 });
 on("POST", "/api/v2/w/:wid/notes", ({ p, body }) => {
   guardWrite(ws(p.wid));
   if (!body.text || body.text.trim().length < 20) throw new HttpError(400, "Paste a bit more — Bracket needs a few sentences to find anything.");
   let notesSrc = S.sources.find((s) => s.provider === "notes");
   if (!notesSrc) { notesSrc = { id: "s_notes", provider: "notes", label: "Notes", account: "Added in Bracket", status: "synced", last_sync_at: new Date().toISOString(), notes: [], activity: [], permissions: { read: true, send: false }, learned: { total: 0, by: {} }, connected_at: new Date().toISOString(), connected_by: "Maya Rao" }; S.sources.push(notesSrc); }
-  const n = { id: uid("n"), title: body.title || "Untitled note", at: new Date().toISOString(), by: "Maya Rao", memories: 3, body: body.text };
-  notesSrc.notes.unshift(n);
-  const found = [
-    { id: uid("x"), category: "decision", title: "Use a single hero CTA", confidence: "high" },
-    { id: uid("x"), category: "requirement", title: "Hero loads under 2s on 4G", confidence: "medium" },
-    { id: uid("x"), category: "commitment", title: "Dev to share staging link by Thursday", confidence: "high" },
-  ];
-  S.events.unshift({ id: uid("ev"), at: n.at, kind: "note_added", title: `Note added — ${n.title}`, actor: { provider: "notes", label: "Maya Rao" }, meta: `${found.length} memories proposed`, source: "notes", memory: true });
-  return { note: n, found, nothing_found: false };
-});
-on("POST", "/api/v2/w/:wid/notes/:nid/accept", ({ body }) => {
-  (body.items || []).forEach((x) => S.memory.unshift({ id: uid("m"), category: x.category, title: x.title, status: "current", confidence: x.confidence || "high", created_at: new Date().toISOString(), changed_at: new Date().toISOString(), history: [{ at: new Date().toISOString(), text: "Added from a note" }], evidence: [{ id: uid("e"), provider: "notes", author: "Maya Rao", where: "Note", at: new Date().toISOString(), quote: x.title, source_id: "s_notes" }], related: [] }));
-  return { ok: true, added: (body.items || []).length };
+  const at = new Date().toISOString();
+  const title = body.title || "Untitled note";
+  const n = { id: uid("n"), title, at, by: "Maya Rao", memories: 3, body: body.text, attendees: (body.people || []).join(", ") };
+  notesSrc.notes.unshift(n); notesSrc.last_sync_at = at;
+  const nothing = /nothing|same as before/i.test(body.text);
+  if (nothing) { n.memories = 0; notesSrc.activity.unshift({ at, text: `Note added: ${title} → nothing new` }); return { note: n, found: 0, needs_review: 0, nothing_new: true }; }
+  const rid = uid("r");
+  S.reviews.push({ id: rid, kind: "scope_change", status: "pending", label: "From a note", title: `${title}: tablet is needed for the board demo`, detected: { count: 1, unit: "note", at },
+    interpretation: "Sarah needs tablet for the board demo on Oct 28 and agreed tablet can ship one week after launch. That changes the tablet date.",
+    trigger: { provider: "notes", source_id: "s_notes", thread_id: n.id, from: "Maya Rao", to: "Notes", at, subject: title, body: body.text.split("\n").filter(Boolean).map((t, i) => (i === 0 ? { text: t, tags: ["Commitments"] } : { text: t })) },
+    compared: [{ memory_id: "co3", text: "Launch two weeks after kickoff — Oct 17.", chip: { provider: "notes", label: "Kickoff call · Oct 3" } }],
+    proposals: [{ id: "p1", category: "commitment", op: "modify", target: "co3", before: "Launch two weeks after kickoff — Oct 17.", after: "Tablet ships one week after launch — before the Oct 28 board demo.", confidence: "medium", rationale: "Agreed on the call, per your note." }] });
+  [{ category: "requirement", title: "Tablet must be ready for the board demo on Oct 28" }, { category: "commitment", title: "Maya will send a revised timeline by Thursday." }].forEach((x) => S.memory.unshift({ id: uid("m"), ...x, status: "current", confidence: "high", created_at: at, changed_at: at, history: [{ at, text: `Added from note “${title}”` }], evidence: [{ id: uid("e"), provider: "notes", author: "Maya Rao", where: title, at, quote: x.title, source_id: "s_notes", ref_id: n.id }], related: [] }));
+  notesSrc.activity.unshift({ at, text: `Note added: ${title} → 3 memories, 1 change to review` });
+  S.events.unshift({ id: uid("ev"), short: `Note added: ${title}`, icon: "added", at, kind: "note_added", title: `Note added — ${title}`, actor: { provider: "notes", label: "Maya Rao" }, meta: "3 memories · 1 change to review", source: "notes", memory: true });
+  return { note: n, found: 3, needs_review: 1, review_id: rid };
 });
 
 /* files */
 on("GET", "/api/v2/w/:wid/files", ({ p }) => ({ files: dataFor(p.wid).files || [] }));
 on("GET", "/api/v2/w/:wid/files/:fid", ({ p }) => {
   const f = S.files.find((x) => x.id === p.fid); if (!f) throw new HttpError(404, "File not found");
-  return { ...f, memories: f.status === "in_memory" ? current().filter((m) => (f.contributed?.categories || []).some((c) => c.toLowerCase().startsWith(m.category.slice(0, 5)))).slice(0, f.contributed?.memories || 0).map((m) => ({ id: m.id, category: m.category, title: m.short || m.title, page: 2 + (m.id.length % 9) })) : [], summary: f.status === "in_memory" ? "Bracket used this file as context. Deleting it keeps the memories it contributed; their evidence will say the file was removed." : null };
+  const n = f.contributed?.memories || 0;
+  const sample = [
+    { category: "Scope", text: "Desktop and mobile are included", id: "sc1" },
+    { category: "Deliverables", text: "Homepage design", id: "dl2" },
+    { category: "Commitments", text: "Launch two weeks after kickoff", id: "co3" },
+    { category: "People", text: "James Park approved the proposal", id: "pm_pe2" },
+    { category: "Scope", text: "Marketing homepage plus four inner pages", id: "sc2" },
+    { category: "Scope", text: "Two rounds of revisions per page", id: "sc6" },
+  ].slice(0, n);
+  return { ...f, memories: sample, impact: { total: n, supported_elsewhere: Math.max(0, n - 2), only_here: Math.min(2, n) } };
 });
 on("POST", "/api/v2/w/:wid/files", ({ p, body }) => {
   guardWrite(ws(p.wid));
   const name = body.name || "Untitled.pdf"; const ext = name.split(".").pop().toLowerCase();
   const size = body.size || 1.2e6;
   let status = "reading"; let reason = null;
-  if (["mov", "mp4", "zip", "exe"].includes(ext)) { status = "not_supported"; reason = ext === "zip" ? "Archives aren't supported — upload the files inside" : "Video isn't supported — add a transcript"; }
+  if (["mov", "mp4", "avi", "zip", "exe"].includes(ext)) { status = "not_supported"; reason = ["zip", "exe"].includes(ext) ? "Archives aren't supported — upload the files inside" : "Video isn't supported — add a transcript"; }
   else if (size > 50e6) { status = "too_large"; reason = "Larger than 50 MB — split the file or upload the relevant pages"; }
-  else if (/locked|protected/i.test(name)) { status = "password_protected"; reason = "Password-protected — remove the password and upload again"; }
-  const f = { id: uid("f"), name, type: ext, size, pages: body.pages || 8, added_at: new Date().toISOString(), added_by: "Maya", status, reason, progress: status === "reading" ? { done: 0, total: body.pages || 8 } : undefined };
+  else if (/locked|protected/i.test(name)) { status = "failed"; reason = "Password-protected — upload an unlocked copy"; }
+  const pages = body.pages || Math.max(2, Math.round(size / 300e3));
+  const f = { id: uid("f"), name, type: ext, size, pages, added_at: new Date().toISOString(), added_by: "Maya", status, reason, progress: status === "reading" ? { done: 0, total: pages } : undefined };
   S.files.unshift(f);
   if (status === "reading") {
-    let step = 0; const iv = setInterval(() => { step += 2; f.progress = { done: Math.min(step, f.pages), total: f.pages }; if (step >= f.pages) { clearInterval(iv); delete f.progress; if (/empty|blank/i.test(name)) { f.status = "nothing_new"; f.reason = "Nothing new found — already in memory"; } else { f.status = "in_memory"; f.contributed = { memories: 3, categories: ["Requirements"] }; } } }, 700);
+    let step = 0; const iv = setInterval(() => {
+      step += Math.max(1, Math.round(pages / 5)); f.progress = { done: Math.min(step, pages), total: pages };
+      if (step >= pages) { clearInterval(iv); delete f.progress; if (/empty|blank|same/i.test(name)) { f.status = "nothing_new"; f.reason = "Nothing new found — everything in it already matches memory"; } else { f.status = "in_memory"; f.contributed = { memories: 2, categories: ["Scope"], proposed: 2 }; } }
+    }, 600);
   }
+  S.events.unshift({ id: uid("ev"), at: f.added_at, kind: "file_added", title: `File uploaded — ${name}`, actor: { provider: "notes", label: "Maya Rao" }, meta: status === "reading" ? "Reading…" : reason, source: "notes" });
   return f;
 });
-on("DELETE", "/api/v2/w/:wid/files/:fid", ({ p, q }) => { guardWrite(ws(p.wid)); S.files = S.files.filter((x) => x.id !== p.fid); return { ok: true, kept_memory: q.keep !== "0" }; });
+on("POST", "/api/v2/w/:wid/files/:fid/replace", ({ p, body }) => { const f = S.files.find((x) => x.id === p.fid); Object.assign(f, { name: body.name || f.name, status: "reading", progress: { done: 0, total: f.pages || 4 }, reason: null }); setTimeout(() => { f.status = "in_memory"; delete f.progress; }, 3000); return f; });
+on("DELETE", "/api/v2/w/:wid/files/:fid", ({ p, q }) => { guardWrite(ws(p.wid)); const f = S.files.find((x) => x.id === p.fid); S.files = S.files.filter((x) => x.id !== p.fid); S.events.unshift({ id: uid("ev"), at: new Date().toISOString(), kind: "file_deleted", title: `File deleted — ${f?.name}`, actor: { provider: "notes", label: "Maya Rao" }, meta: q.keep === "0" ? "2 memories removed · restorable for 30 days" : "Memories kept, marked “source removed”", memory: q.keep === "0" }); return { ok: true, kept_memory: q.keep !== "0" }; });
 
 /* members */
 on("GET", "/api/v2/w/:wid/members", () => ({ members: S.members }));
