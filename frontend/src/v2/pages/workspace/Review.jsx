@@ -77,6 +77,7 @@ export default function Review() {
     try {
       const res = await v2.acceptReview(projectId, r.id, [...selected], edits);
       refreshAll();
+      window.dispatchEvent(new Event("bk:review-accepted"));
       navigate(base);
       toast.success(`${res.accepted} memories updated · ${res.impact.replace(/ \+?\d+/g, "").split(" · ").join(", ")}`, {
         duration: 10000,

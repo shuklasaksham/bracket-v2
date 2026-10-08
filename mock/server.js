@@ -392,14 +392,31 @@ on("GET", "/api/v2/w/:wid/threads/:tid", ({ p }) => { const t = S.threads.find((
 on("POST", "/api/v2/w/:wid/threads/:tid/draft", ({ p, body }) => {
   const t = S.threads.find((x) => x.id === p.tid);
   const first = (t.who || "").split(" ")[0] || "there";
-  if (p.tid === "t1") return {
-    to: "sarah.chen@acmefinance.com", via: "gmail", based_on: [{ provider: "gmail", label: "Scope · Sep 12", memory_id: "sc1" }, { provider: "notes", label: "Timeline · Oct 3", memory_id: "co3" }, { provider: "slack", label: "Mobile due Oct 10", memory_id: "co1" }],
-    body: "Hi Sarah,\n\nGlad the editorial direction landed well. Happy to add tablet layouts. Our current agreement covers desktop and mobile within the two-week timeline (launch Oct 17), so tablet would be an addition. Two options:\n\n1. Keep Oct 17 for desktop and mobile, and deliver tablet by [[Oct 24]].\n2. Move the full launch to [[Oct 22]] with all three breakpoints.\n\nMobile screens are still on track for Friday. Could you also send over the brand assets when you get a chance?\n\nBest,\nMaya",
-    note: "Highlighted dates are suggestions — Bracket doesn’t know your capacity.", instruction: body.instruction || null };
-  if (p.tid === "t4") return { to: "sarah.chen@acmefinance.com", via: "gmail", based_on: [{ provider: "gmail", label: "Promised Sep 29", memory_id: "co2" }, { provider: "slack", label: "Mobile due Oct 10", memory_id: "co1" }],
-    body: "Hi Sarah,\n\nQuick nudge on the brand assets — logos and fonts. We’re finalising the mobile screens for [[Friday]] and want to use the real files.\n\nCould you send them by [[Wednesday]]? If it’s easier, a shared folder link works too.\n\nThanks,\nMaya", note: "Highlighted dates are suggestions — Bracket doesn’t know your capacity." };
-  return { to: t.provider === "slack" ? t.title : "", via: t.provider === "notes" ? "copy" : t.provider, based_on: [], body: `Hi ${first},\n\nThanks for the note — I’ll get back to you shortly.\n\nBest,\nMaya`, note: t.provider === "notes" ? "Notes can’t send — copy this into your email." : null };
+  const note = "Highlighted dates are suggestions — Bracket doesn’t know your capacity.";
+  const ins = body.instruction || "";
+  if (p.tid === "t4" || /follow/.test(ins)) return { label: `Draft follow-up to ${first}`, to: t.to_email, via: "gmail", note,
+    based_on: [{ provider: "gmail", label: "Promised Sep 29", memory_id: "co2" }, { provider: "notes", label: "Mobile due Oct 10", memory_id: "co1" }],
+    body: "Hi Sarah,\n\nQuick nudge on the brand assets (logo files and fonts) — we need them to finalise the editorial homepage ahead of Friday’s mobile screens. Could you send them by [[Wednesday]]?\n\nThanks,\nMaya" };
+  if (p.tid === "t1") {
+    const m = ins.match(/resolve-(\w+)/); const date = (ins.match(/date=([\d-]+)/) || [])[1];
+    const dl = date ? new Date(date + "T09:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+    let text = "Hi Sarah,\n\nGlad the editorial direction landed well. Happy to add tablet layouts. Our current agreement covers desktop and mobile within the two-week timeline (launch Oct 17), so tablet would be an addition. Two options:\n\n1. Keep Oct 17 for desktop and mobile, and deliver tablet by [[Oct 24]].\n2. Move the full launch to [[Oct 22]] with all three breakpoints.\n\nMobile screens are still on track for Friday. Could you also send over the brand assets when you get a chance?\n\nBest,\nMaya";
+    if (m && m[1] === "split") text = `Hi Sarah,\n\nHappy to add tablet layouts. To keep the launch on Oct 17, we’ll ship desktop and mobile then and deliver tablet by [[${dl || "Oct 24"}]].\n\nMobile screens are still on track for Friday.\n\nBest,\nMaya`;
+    if (m && m[1] === "move") text = `Hi Sarah,\n\nHappy to add tablet layouts. To ship all three breakpoints together, we’ll move the launch to [[${dl || "Oct 22"}]].\n\nMobile screens are still on track for Friday.\n\nBest,\nMaya`;
+    if (m && m[1] === "drop") text = "Hi Sarah,\n\nThanks for the note on tablet. To keep the two-week timeline, we’ll stay with desktop and mobile for the Oct 17 launch — happy to scope tablet as a follow-up.\n\nBest,\nMaya";
+    return { label: "Draft reply to Sarah", to: t.to_email, via: "gmail", note,
+      based_on: [{ provider: "gmail", label: "Scope · Sep 12", memory_id: "sc1" }, { provider: "notes", label: "Timeline · Oct 3", memory_id: "co3" }, { provider: "slack", label: "Mobile due Oct 10", memory_id: "co1" }], body: text };
+  }
+  if (t.provider === "slack") return { label: "Draft reply in thread", to: t.channel, via: "slack", based_on: [], note: null,
+    body: "Confirmed: testimonials will have name, role, quote and company logo. Dev will set up the CMS collection today." };
+  if (t.provider === "notes") return { label: "Draft message", to: "", via: "copy", based_on: [], note: "Notes can’t send — copy this into your email.", body: `Hi all,\n\nRecap from ${t.title}: Lighthouse 90+ on mobile, Webflow CMS for testimonials, and review schema on the homepage.\n\nBest,\nMaya` };
+  return { label: `Draft reply to ${first}`, to: t.to_email, via: t.provider, based_on: [], note: null, body: `Hi ${first},\n\nThanks for the note — I’ll get back to you shortly.\n\nBest,\nMaya` };
 });
+on("GET", "/api/v2/w/:wid/message-templates", () => ({ templates: [
+  { id: "timeline", label: "Timeline proposal", to: "Sarah Chen <sarah.chen@acmefinance.com>", subject: "Revised timeline for tablet layouts", body: "Hi Sarah,\n\nAs promised, here’s the revised timeline with tablet included: desktop and mobile on Oct 17, tablet by Oct 24.", remember: [{ category: "Commitments", text: "Tablet by Oct 24 (once sent)" }] },
+  { id: "assets", label: "Brand assets follow-up", to: "Sarah Chen <sarah.chen@acmefinance.com>", subject: "Brand assets", body: "Hi Sarah,\n\nQuick nudge on the logo files and fonts — could you send them by Wednesday?\n\nThanks,\nMaya", remember: [] },
+  { id: "weekly", label: "Weekly update", to: "Sarah Chen <sarah.chen@acmefinance.com>, James Park <james.park@acmefinance.com>", subject: "Weekly update — Fintech landing page", body: "Hi both,\n\nThis week: editorial homepage direction confirmed, mobile screens on track for Friday, testimonials CMS in progress.\n\nNext: tablet decision and brand assets.\n\nBest,\nMaya", remember: [] },
+] }));
 on("POST", "/api/v2/w/:wid/threads/:tid/send", ({ p, body }) => {
   guardWrite(ws(p.wid));
   if (/fail/i.test(body.body || "")) throw new HttpError(502, "Gmail didn’t accept the message. Your draft is kept.", { code: "send_failed" });

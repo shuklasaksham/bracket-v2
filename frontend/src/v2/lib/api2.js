@@ -62,6 +62,7 @@ export const v2 = {
   draft: (wid, tid, instruction) => p(`${W(wid)}/threads/${tid}/draft`, { instruction }),
   send: (wid, tid, body, to) => p(`${W(wid)}/threads/${tid}/send`, { body, to }),
   newMessage: (wid, body) => p(`${W(wid)}/messages`, body),
+  messageTemplates: (wid) => g(`${W(wid)}/message-templates`),
 
   /* ask */
   ask: (wid, question, scope) => p(`${W(wid)}/ask`, { question, scope }),
