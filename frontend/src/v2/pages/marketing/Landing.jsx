@@ -1,204 +1,288 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  ArrowRight, AlertTriangle, Plug, Layers, Bell, Reply, MessageCircleQuestion, ShieldCheck, Check, Clock, ChevronDown, Lock, History,
-} from "lucide-react";
+import { ArrowRight, Check, MessagesSquare, RefreshCw, User, Lock, Link2, Unlink, Plus } from "lucide-react";
 import { useAuth } from "../../../lib/AuthContext";
-import { Badge, Button, EvidenceChip, Kbd, SourceMark } from "../../ui/primitives";
-import { Section } from "./Layout";
+import { Badge, Button, SourceMark } from "../../ui/primitives";
+import { Reveal, Section } from "./Layout";
 import { Seo } from "../../shell/Seo";
+import { motion, AnimatePresence, EASE } from "../../ui/motion";
 import { cn } from "../../../lib/utils";
+
+const TOOLS = [
+  { p: "gmail", l: "Gmail" }, { p: "slack", l: "Slack" }, { p: "notes", l: "Notes & transcripts" }, { p: "file", l: "Files" },
+  { l: "Figma", soon: "F" }, { l: "GitHub", soon: "G" }, { l: "Notion", soon: "N" }, { l: "Jira", soon: "J" },
+];
+const PROBLEMS = [
+  [MessagesSquare, "Decisions get buried", "Agreed on a call, confirmed in an email, changed in a Slack thread. Nobody can find the final version."],
+  [RefreshCw, "Requirements change quietly", "A “small” request lands in a reply. Scope moves, and the deadline doesn’t."],
+  [User, "People remember differently", "Two weeks later, everyone has a different version of what was promised."],
+];
+const STEPS = [
+  ["01", "Connect", "Choose the threads, channels and notes Bracket may read. Nothing else."],
+  ["02", "Remember", "Bracket builds memory — decisions, commitments, scope, people — each with its source."],
+  ["03", "Notice", "When something changes, you get one grouped review, not ten notifications."],
+  ["04", "Respond", "Ask anything, or reply with a draft that knows the whole story."],
+];
+const FEATURES = [
+  {
+    eyebrow: "Change review", title: "Review what changed. Don’t chase it.", img: "/marketing/feature-review.png", alt: "A change review showing Sarah’s email next to five proposed memory updates",
+    body: "When a client asks for something new, Bracket shows what it would change across scope, deliverables and dates — together, with the message that triggered it.",
+    checks: ["Accept, edit or dismiss each proposed update", "Low-confidence interpretations start unselected", "Every change is versioned and reversible"],
+  },
+  {
+    eyebrow: "Ask Bracket", title: "Answers with receipts.", img: "/marketing/feature-ask.png", alt: "An Ask Bracket answer with numbered citations and an open source", flip: true, tone: "sidebar",
+    body: "Ask anything about your work. Bracket answers from your memory and sources — and tells you what it isn’t sure about.",
+    checks: ["Numbered citations open the exact message", "Uncertainty is stated, not hidden", "Says so when the answer isn’t in your sources"],
+  },
+  {
+    eyebrow: "Context-aware replies", title: "Replies that know the whole story.", img: "/marketing/feature-reply.png", alt: "A drafted reply to Sarah grounded in scope, timeline and commitments",
+    body: "Drafts use what was agreed, what changed and what’s due — and show what they’re based on. You edit and send.",
+    checks: ["Grounded in scope, timeline and commitments", "Uncertain details are highlighted to check", "Send through Gmail or Slack, only when you say so"],
+  },
+];
+export const USE_CASES = [
+  ["Freelancers", "Three clients, one inbox.", ["Clients", "Scope", "Payments"]],
+  ["Agencies", "Every client, every approval.", ["Deliverables", "Approvals", "Feedback"]],
+  ["Startups", "Customers and decisions in one place.", ["Customers", "Issues", "Launches"]],
+  ["Accounting firms", "Requests and filings, tracked.", ["Filings", "Documents", "Deadlines"]],
+  ["Manufacturers", "Orders that change by email.", ["Orders", "Specs", "Deliveries"]],
+];
+const TRUST = [
+  [Lock, "Reads only what you choose", "Pick the threads and channels. Direct messages are never read."],
+  [Check, "Nothing changes without you", "Important updates wait for your review. Every one is reversible."],
+  [Link2, "Every claim has a source", "Open the exact message, note or file behind any memory."],
+  [Unlink, "Leave any time", "Disconnect a source and choose to keep or remove what was learned."],
+];
+const SHARED = ["Unlimited connected tools", "Living memory & change review", "Draft & send replies", "Ask Bracket with citations"];
+export const PLAN_CARDS = [
+  { id: "monthly", name: "Monthly", usd: 12, inr: 999, period: "/ month", desc: "For ongoing client work.", popular: true, features: ["Up to 10 active projects", ...SHARED] },
+  { id: "project", name: "Per project", usd: 2, inr: 199, period: "/ project", desc: "For occasional, one-off projects.", features: ["One project, active for 60 days", ...SHARED] },
+];
+export const FAQS = [
+  ["What exactly does Bracket do?", "It connects to Gmail, Slack and your notes, builds a living memory of what’s been agreed, flags when something changes, and helps you reply with the right context."],
+  ["Does Bracket read my whole inbox?", "No. You choose the threads and channels it can read. You can change this or disconnect at any time."],
+  ["Can Bracket send emails on its own?", "Never. It drafts; you review, edit and send."],
+  ["Is my data used to train AI models?", "No. Your data is only used to build your workspace’s memory."],
+  ["What’s the difference between the two plans?", "Monthly covers up to 10 active projects. Per project is a one-time payment for a single project, active for 60 days."],
+];
 
 export default function Landing() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const start = () => navigate(user ? "/app" : "/signup");
   return (
     <>
       <Seo title={null} description="Bracket connects your email, Slack and notes, remembers what was agreed, notices when it changes, and helps you respond with the right context." noindex={false} />
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[520px] bg-[radial-gradient(60%_50%_at_50%_0%,rgba(255,255,255,0.07),transparent)]" aria-hidden="true" />
-        <div className="mx-auto max-w-[1200px] px-4 pt-20 text-center md:px-8 md:pt-28">
-          <p className="eyebrow">A memory for your business</p>
-          <h1 className="mx-auto mt-4 max-w-[860px] text-[40px] leading-[44px] md:text-[64px] md:leading-[68px] font-semibold tracking-[-2px]">Your business, remembered.</h1>
-          <p className="mx-auto mt-5 max-w-[620px] text-body-l md:text-[18px] md:leading-[28px] text-fg-tertiary">
-            Bracket connects your email, Slack and notes, remembers what was agreed, notices when it changes, and helps you respond with the right context — with a source for every claim.
-          </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button variant="primary" size="l" onClick={() => navigate(user ? "/app" : "/signup")} iconRight={ArrowRight}>{user ? "Open Bracket" : "Get started free"}</Button>
-            <Button variant="secondary" size="l" onClick={() => document.getElementById("how")?.scrollIntoView({ behavior: "smooth" })}>See how it works</Button>
-          </div>
-          <p className="mt-4 text-body-s text-fg-tertiary">Free for 14 days · No card required · Set up in 5 minutes</p>
+
+      {/* Hero — Figma 56:32 */}
+      <section id="product" className="relative overflow-hidden bg-app">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-[radial-gradient(50%_60%_at_50%_0%,rgba(255,255,255,0.06),transparent)]" aria-hidden="true" />
+        <div className="relative flex flex-col items-center px-4 pt-16 text-center md:px-8 md:pt-[112px]">
+          <motion.div className="flex flex-col items-center" initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.07 } } }}>
+            {[
+              <p key="e" className="eyebrow">A memory for your business</p>,
+              <h1 key="h" className="mt-6 text-[44px] font-semibold leading-[1.08] tracking-[-1.32px] md:mt-7 md:text-[72px] md:tracking-[-2.16px]">Your business, remembered.</h1>,
+              <p key="s" className="mt-5 max-w-[720px] text-body-l text-fg-secondary md:mt-6 md:text-[18px] md:leading-[28px]">Bracket connects your email, Slack and notes, remembers what was agreed, notices when it changes, and helps you respond with the right context — with a source for every claim.</p>,
+              <div key="c" className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                <Button variant="primary" className="h-11" onClick={start}>{user ? "Open Bracket" : "Get started free"}</Button>
+                <Button variant="secondary" className="h-11" onClick={() => document.getElementById("how")?.scrollIntoView({ behavior: "smooth" })}>See how it works</Button>
+              </div>,
+              <p key="n" className="mt-7 text-caption text-fg-tertiary">Free for 14 days · No card required · Set up in 5 minutes</p>,
+            ].map((el) => (
+              <motion.div key={el.key} className="flex w-full justify-center" variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } }}>{el}</motion.div>
+            ))}
+          </motion.div>
+          <motion.div
+            className="relative mt-12 w-full max-w-[1152px] md:mt-11"
+            initial={{ opacity: 0, y: 32, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.8, ease: EASE, delay: 0.35 }}
+          >
+            <img src="/marketing/hero-overview.png" width={1152} height={680} alt="Bracket workspace overview for Acme Finance: needs attention, coming up, memory categories and recent timeline" className="block h-auto w-full rounded-t-xl border border-b-0 border-line" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-app to-transparent" aria-hidden="true" />
+          </motion.div>
         </div>
-        <div className="mx-auto mt-16 max-w-[1100px] px-4 md:px-8"><ProductMock /></div>
       </section>
 
-      {/* Tools */}
-      <div className="mx-auto max-w-[1200px] px-4 pt-16 md:px-8">
-        <p className="text-center eyebrow">Learns from the tools you already use</p>
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          {[["gmail", "Gmail"], ["slack", "Slack"], ["meeting", "Notes & transcripts"], ["figma", "Figma"], ["github", "GitHub"], ["notion", "Notion"]].map(([p, l]) => (
-            <span key={p} className="inline-flex h-9 items-center gap-2 rounded-full border border-line px-3.5 text-body-m text-fg-secondary"><SourceMark provider={p} size={15} />{l}</span>
-          ))}
-        </div>
-      </div>
-
-      {/* Problem */}
-      <Section id="product" eyebrow="The problem" title="Your business lives in a dozen places." sub="Every business already has the information it needs. It’s just scattered — and remembering it all has quietly become your job.">
-        <div className="mt-14 grid gap-4 md:grid-cols-3">
-          {[
-            [Layers, "Decisions get buried", "Agreed on a call, confirmed in an email, changed in a Slack thread. Nobody can find the final version."],
-            [AlertTriangle, "Requirements change quietly", "A “small” request lands in a reply. Scope moves, and the deadline doesn’t."],
-            [History, "People remember differently", "Two weeks later, everyone has a different version of what was promised."],
-          ].map(([I, t, d]) => (
-            <div key={t} className="rounded-xl border border-line bg-surface p-6">
-              <I size={18} className="text-fg-secondary" strokeWidth={1.75} />
-              <p className="mt-5 text-title-m">{t}</p>
-              <p className="mt-2 text-body-m text-fg-tertiary">{d}</p>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* How */}
-      <Section id="how" eyebrow="How it works" title="Connect once. Bracket keeps up." className="border-t border-line-subtle">
-        <div className="mt-14 grid gap-px overflow-hidden rounded-xl border border-line bg-line md:grid-cols-4">
-          {[
-            ["01", Plug, "Connect", "Choose the threads, channels and notes Bracket may read. Nothing else."],
-            ["02", Layers, "Remember", "Bracket builds memory — decisions, commitments, scope, people — each with its source."],
-            ["03", Bell, "Notice", "When something changes, you get one grouped review, not ten notifications."],
-            ["04", Reply, "Respond", "Ask anything, or reply with a draft that knows the whole story."],
-          ].map(([n, I, t, d]) => (
-            <div key={n} className="bg-surface p-6">
-              <p className="font-mono text-mono-s text-fg-tertiary">{n}</p>
-              <I size={18} className="mt-5 text-fg-secondary" strokeWidth={1.75} />
-              <p className="mt-4 text-title-m">{t}</p>
-              <p className="mt-2 text-body-m text-fg-tertiary">{d}</p>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* Features */}
-      <Section className="border-t border-line-subtle" eyebrow="Built on trust" title="Humans stay in control of every important change.">
-        <div className="mt-14 grid gap-4 md:grid-cols-3">
-          <Feature icon={AlertTriangle} title="Change review" body="Bracket proposes; you accept, edit or dismiss. Low-confidence items are unselected by default. Undo is always one click away." />
-          <Feature icon={Check} title="Every claim has evidence" body="Each memory links to the exact message it came from — sender, date and the words that matter." />
-          <Feature icon={MessageCircleQuestion} title="Ask with citations" body="“Did we agree to a two-week deadline?” — a straight answer, with sources and what Bracket isn’t sure about." />
-        </div>
-      </Section>
-
-      {/* Security */}
-      <Section className="border-t border-line-subtle">
-        <div className="grid items-center gap-10 md:grid-cols-2">
-          <div>
-            <p className="eyebrow">Security</p>
-            <h2 className="mt-3 text-[30px] leading-[36px] md:text-[40px] md:leading-[46px] font-semibold tracking-[-1px]">Reads only what you choose.</h2>
-            <p className="mt-4 text-body-l text-fg-tertiary">You pick the specific threads and channels. Bracket never sends, edits or deletes anything without your approval, and your business data is never used to train general AI models.</p>
-            <Link to="/security" className="mt-6 inline-flex items-center gap-1.5 text-body-m text-fg hover:underline">How we protect your data <ArrowRight size={14} /></Link>
-          </div>
-          <ul className="space-y-3">
-            {["Scoped access — only the sources you select", "Never sends without your approval", "Encrypted in transit and at rest", "Deleted data recoverable for 30 days, then removed", "Never used to train general AI models"].map((t) => (
-              <li key={t} className="flex items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-body-m text-fg-secondary"><Lock size={15} className="text-fg-tertiary" />{t}</li>
+      {/* Learns from — 56:169 */}
+      <section className="bg-app px-4 pb-6 pt-16 md:px-8">
+        <Reveal className="flex flex-col items-center gap-4">
+          <p className="eyebrow text-center">Learns from the tools you already use</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {TOOLS.map((t) => (
+              <div key={t.l} className={cn("flex items-center gap-2 rounded-md border border-line py-2 pl-3 pr-4 text-body-s font-medium text-fg-secondary", t.soon && "opacity-55")}>
+                {t.soon ? <span className="flex h-4 w-4 items-center justify-center rounded-[3px] bg-white/[0.06] text-[9px] font-bold text-fg">{t.soon}</span> : <SourceMark provider={t.p === "file" ? "meeting" : t.p} />}
+                {t.l}
+                {t.soon && <span className="text-caption text-fg-tertiary">Soon</span>}
+              </div>
             ))}
-          </ul>
-        </div>
-      </Section>
-
-      {/* FAQ */}
-      <Section className="border-t border-line-subtle" eyebrow="Questions" title="Frequently asked">
-        <div className="mx-auto mt-12 max-w-[760px]"><Faq /></div>
-      </Section>
-
-      {/* CTA */}
-      <section className="border-t border-line-subtle">
-        <div className="mx-auto max-w-[1200px] px-4 py-24 text-center md:px-8">
-          <h2 className="text-[30px] leading-[36px] md:text-[44px] md:leading-[50px] font-semibold tracking-[-1px]">Stop being the memory of your business.</h2>
-          <div className="mt-8 flex justify-center gap-3">
-            <Button variant="primary" size="l" onClick={() => navigate(user ? "/app" : "/signup")}>{user ? "Open Bracket" : "Get started free"}</Button>
-            <Link to="/pricing"><Button variant="secondary" size="l">See pricing</Button></Link>
           </div>
+        </Reveal>
+      </section>
+
+      {/* Problem — 56:234 */}
+      <Section eyebrow="The problem" title="Your business lives in a dozen places." sub="Every business already has the information it needs. It’s just scattered — and remembering it all has quietly become your job.">
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {PROBLEMS.map(([Icon, h, b], i) => (
+            <Reveal key={h} delay={i * 0.06} className="flex flex-col gap-3 rounded-lg border border-line p-6">
+              <Icon size={20} strokeWidth={1.75} className="text-fg-secondary" />
+              <h3 className="text-title-m">{h}</h3>
+              <p className="text-body-m text-fg-secondary">{b}</p>
+            </Reveal>
+          ))}
         </div>
+      </Section>
+
+      {/* How it works — 56:260 */}
+      <Section id="how" tone="sidebar" eyebrow="How it works" title="Connect once. Bracket keeps up.">
+        <Reveal className="mt-12 grid overflow-hidden rounded-lg border border-line sm:grid-cols-2 lg:grid-cols-4">
+          {STEPS.map(([n, h, b], i) => (
+            <div key={n} className={cn("flex flex-col gap-3 px-7 pb-8 pt-7 border-line", i > 0 && "border-t sm:border-t-0", i % 2 === 1 && "sm:border-l", i >= 2 && "sm:border-t lg:border-t-0", i === 2 && "lg:border-l")}>
+              <p className="eyebrow">{n}</p>
+              <h3 className="text-title-m">{h}</h3>
+              <p className="text-body-m text-fg-secondary">{b}</p>
+            </div>
+          ))}
+        </Reveal>
+      </Section>
+
+      {/* Features — 57:499 / 57:672 / 57:814 */}
+      {FEATURES.map((f) => (
+        <section key={f.eyebrow} className={cn("overflow-hidden px-4 py-16 md:px-8 lg:px-[120px] lg:py-24", f.tone === "sidebar" ? "bg-sidebar" : "bg-app")}>
+          <div className={cn("mx-auto flex max-w-[1200px] flex-col gap-10 lg:flex-row lg:items-center lg:justify-between lg:gap-16", f.flip && "lg:flex-row-reverse")}>
+            <Reveal className="flex max-w-[420px] flex-col gap-4">
+              <p className="eyebrow">{f.eyebrow}</p>
+              <h2 className="text-[30px] font-semibold leading-[1.1] tracking-[-0.9px] md:text-[36px] md:tracking-[-1.08px]">{f.title}</h2>
+              <p className="text-body-l text-fg-secondary">{f.body}</p>
+              <ul className="flex flex-col gap-3 pt-2">
+                {f.checks.map((c) => (
+                  <li key={c} className="flex gap-3 text-body-m text-fg-secondary"><Check size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-fg" />{c}</li>
+                ))}
+              </ul>
+            </Reveal>
+            <Reveal y={24} delay={0.1} className="w-full lg:w-[680px] lg:shrink-0">
+              <img src={f.img} alt={f.alt} width={680} height={520} loading="lazy" className="block h-auto w-full" />
+            </Reveal>
+          </div>
+        </section>
+      ))}
+
+      {/* Use cases — 57:832 */}
+      <Section tone="sidebar" eyebrow="For any business" title="Bracket learns what matters to yours." sub="There are no templates to set up. Bracket discovers the categories that fit your work from your own sources.">
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {USE_CASES.map(([h, b, tags], i) => (
+            <Reveal key={h} delay={i * 0.05} className="flex flex-col gap-3 rounded-lg border border-line bg-app p-5 transition-colors hover:border-line-strong">
+              <h3 className="text-title-s">{h}</h3>
+              <p className="text-body-s text-fg-secondary">{b}</p>
+              <div className="flex flex-wrap gap-x-2 gap-y-1.5 pt-2">{tags.map((t) => <Badge key={t}>{t}</Badge>)}</div>
+            </Reveal>
+          ))}
+        </div>
+      </Section>
+
+      {/* Trust — 57:903 */}
+      <Section eyebrow="Trust" title="You stay in control.">
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {TRUST.map(([Icon, h, b], i) => (
+            <Reveal key={h} delay={i * 0.05} className="flex flex-col gap-3 rounded-lg border border-line p-5">
+              <Icon size={16} strokeWidth={1.75} className="text-fg-secondary" />
+              <h3 className="text-title-s">{h}</h3>
+              <p className="text-body-s text-fg-secondary">{b}</p>
+            </Reveal>
+          ))}
+        </div>
+      </Section>
+
+      {/* Pricing — 57:935 */}
+      <Section id="pricing" tone="sidebar" eyebrow="Pricing" title="Simple, honest pricing." sub="Pay monthly for ongoing work, or once for a single project. Cancel anytime.">
+        <PlanCards className="mt-12" onStart={start} />
+        <Reveal className="mt-12 flex justify-center">
+          <Link to="/pricing" className="group inline-flex items-center gap-1 text-body-s font-medium text-fg-secondary transition-colors hover:text-fg">
+            Compare plans and FAQs <ArrowRight size={16} strokeWidth={1.75} className="transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </Reveal>
+      </Section>
+
+      {/* FAQ — 57:1026 */}
+      <Section eyebrow="FAQ" title="Questions, answered.">
+        <FaqList items={FAQS} className="mt-12" />
+      </Section>
+
+      {/* Final CTA — 57:1070 */}
+      <section className="bg-sidebar px-4 py-20 text-center md:px-8 md:py-[120px]">
+        <Reveal className="flex flex-col items-center">
+          <h2 className="text-[32px] font-semibold leading-[1.1] tracking-[-0.96px] md:text-[52px] md:tracking-[-1.56px]">Stop re-explaining your business.</h2>
+          <p className="mt-6 max-w-[460px] text-body-l text-fg-secondary">Connect one source and see what Bracket remembers in five minutes.</p>
+          <Button variant="primary" className="mt-6 h-11" iconRight={ArrowRight} onClick={start}>{user ? "Open Bracket" : "Get started free"}</Button>
+        </Reveal>
       </section>
     </>
   );
 }
 
-function Feature({ icon: I, title, body }) {
+/* Figma › Plan card (55:557): popular = raised surface + control border + primary CTA */
+export function PlanCards({ className, onStart, currency = "usd", ctaLabel = "Get started" }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-6">
-      <I size={18} className="text-fg-secondary" strokeWidth={1.75} />
-      <p className="mt-5 text-title-m">{title}</p>
-      <p className="mt-2 text-body-m text-fg-tertiary">{body}</p>
-    </div>
-  );
-}
-
-export const FAQS = [
-  ["What does Bracket actually read?", "Only the specific Gmail threads, Slack channels, files and notes you select. It never browses your inbox or workspace on its own."],
-  ["Will it send anything on my behalf?", "Never without you. Bracket drafts replies; you review, edit and choose to send."],
-  ["What counts as a project?", "Each project is one workspace in Bracket — a client, engagement or business. Monthly covers up to 10 active projects; archived ones don’t count."],
-  ["Is my data used to train AI?", "No. Your workspace content, connected sources, files, notes and Bracket Memory are never used to train general-purpose AI models — ours or our providers’."],
-  ["Can I cancel anytime?", "Yes. You keep access until the end of the period, and your memory stays readable — nothing is deleted."],
-];
-export function Faq() {
-  const [open, setOpen] = useState(0);
-  return (
-    <div className="divide-y divide-line-subtle rounded-xl border border-line bg-surface">
-      {FAQS.map(([q, a], i) => (
-        <div key={q}>
-          <button className="flex w-full items-center gap-4 px-5 py-4 text-left" aria-expanded={open === i} onClick={() => setOpen(open === i ? -1 : i)}>
-            <span className="flex-1 text-title-s">{q}</span>
-            <ChevronDown size={16} className={cn("text-fg-tertiary transition-transform duration-base", open === i && "rotate-180")} />
-          </button>
-          {open === i && <p className="px-5 pb-5 -mt-1 text-body-m text-fg-tertiary animate-fade-in">{a}</p>}
-        </div>
+    <div className={cn("mx-auto grid max-w-[824px] gap-6 md:grid-cols-2", className)}>
+      {PLAN_CARDS.map((p, i) => (
+        <Reveal key={p.id} delay={i * 0.08} className={cn("flex flex-col gap-5 rounded-lg border p-7 transition-colors", p.popular ? "border-line-control bg-raised" : "border-line bg-surface hover:border-line-strong")}>
+          <div className="flex items-center gap-2">
+            <h3 className="text-title-s">{p.name}</h3>
+            <div className="flex-1" />
+            {p.popular && <Badge>Most popular</Badge>}
+          </div>
+          <div className="flex items-end gap-2">
+            <span className="text-[40px] font-semibold leading-[44px] tracking-[-0.4px]">{currency === "inr" ? `₹${p.inr}` : `$${p.usd}`}</span>
+            <span className="text-body-m text-fg-tertiary">{p.period}</span>
+          </div>
+          <p className="text-body-s text-fg-secondary">{p.desc}{currency === "inr" ? " Includes GST." : ""}</p>
+          <Button variant={p.popular ? "primary" : "secondary"} className="h-10 w-full" onClick={() => onStart?.(p.id)}>{ctaLabel}</Button>
+          <div className="h-px bg-line" />
+          <ul className="flex flex-col gap-3">
+            {p.features.map((f) => (
+              <li key={f} className="flex gap-3 text-body-s text-fg-secondary"><Check size={16} strokeWidth={1.75} className="shrink-0 text-success" />{f}</li>
+            ))}
+          </ul>
+        </Reveal>
       ))}
     </div>
   );
 }
 
-/* Static product preview (rendered UI, not a screenshot) */
-function ProductMock() {
+/* Figma › FAQ row (55:572): whole row is a button with aria-expanded; + becomes × */
+export function FaqList({ items, className, defaultOpen = 0 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="overflow-hidden rounded-xl border border-line-strong bg-app shadow-overlay" aria-label="Bracket product preview" role="img">
-      <div className="flex h-11 items-center gap-2 border-b border-line-subtle px-4">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded border border-line bg-raised text-[9px] font-semibold">AF</span>
-        <span className="text-body-s text-fg-tertiary">Acme Finance /</span><span className="text-body-s">Fintech Landing Page Redesign</span>
-        <span className="flex-1" />
-        <span className="hidden sm:flex h-7 w-48 items-center gap-2 rounded-md border border-line px-2 text-body-s text-fg-tertiary">Search or jump to… <span className="flex-1" /><Kbd>⌘K</Kbd></span>
-      </div>
-      <div className="grid md:grid-cols-[200px_1fr]">
-        <div className="hidden md:block border-r border-line-subtle bg-sidebar p-3 text-left">
-          <p className="eyebrow px-2 pb-2">Workspace</p>
-          {["Overview", "Memory", "Conversations", "Timeline"].map((l, i) => <p key={l} className={cn("rounded-md px-2 py-1.5 text-body-s", i === 0 ? "bg-selected text-fg" : "text-fg-tertiary")}>{l}</p>)}
-          <p className="eyebrow px-2 pb-2 pt-4">Sources</p>
-          {[["gmail", "Gmail"], ["slack", "Slack"], ["meeting", "Notes"]].map(([p, l]) => <p key={l} className="flex items-center gap-2 px-2 py-1.5 text-body-s text-fg-tertiary"><SourceMark provider={p} size={12} />{l}</p>)}
-        </div>
-        <div className="p-5 text-left md:p-6">
-          <p className="text-title-m">Fintech Landing Page Redesign</p>
-          <p className="text-body-s text-fg-tertiary">Acme Finance · 3 things need you</p>
-          <p className="mt-5 text-title-s">Needs your attention</p>
-          <div className="mt-2 rounded-lg border border-line bg-surface">
-            <div className="flex flex-col gap-3 border-b border-line-subtle p-4 sm:flex-row sm:items-start">
-              <div className="flex-1">
-                <p className="text-body-s font-medium text-warning">Potential scope change · affects 5 memories</p>
-                <p className="mt-1 text-title-s">Sarah asked to add tablet layouts while keeping the two-week timeline</p>
-                <div className="mt-2"><EvidenceChip provider="gmail">Sarah Chen · 09:41</EvidenceChip></div>
-              </div>
-              <span className="inline-flex h-8 items-center rounded-md bg-inverse px-3 text-body-s font-medium text-fg-inverse">Review 5 changes</span>
-            </div>
-            <div className="flex items-start gap-3 p-4">
-              <div className="flex-1">
-                <p className="text-body-s font-medium text-fg-tertiary">Waiting on Acme Finance · 8 days</p>
-                <p className="mt-1 text-title-s">Brand assets haven’t been received</p>
-              </div>
-              <span className="inline-flex h-8 items-center rounded-md border border-line px-3 text-body-s">Draft follow-up</span>
-            </div>
+    <Reveal className={cn("mx-auto max-w-[720px]", className)}>
+      {items.map(([q, a], i) => {
+        const isOpen = open === i;
+        return (
+          <div key={q} className="border-b border-line">
+            <button
+              type="button"
+              className="flex w-full items-center gap-4 py-5 text-left"
+              aria-expanded={isOpen}
+              aria-controls={`faq-${i}`}
+              onClick={() => setOpen(isOpen ? -1 : i)}
+            >
+              <span className="flex-1 text-title-s">{q}</span>
+              <motion.span animate={{ rotate: isOpen ? 45 : 0 }} transition={{ duration: 0.2, ease: EASE }} className="text-fg-secondary">
+                <Plus size={16} strokeWidth={1.75} />
+              </motion.span>
+            </button>
+            <AnimatePresence initial={false}>
+              {isOpen && (
+                <motion.div
+                  id={`faq-${i}`}
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.22, ease: EASE }}
+                  className="overflow-hidden"
+                >
+                  <p className="pb-5 text-body-m text-fg-secondary">{a}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-body-s text-fg-tertiary"><Clock size={12} /> Memory updated 2 min ago <Badge tone="info" className="ml-2">1 due</Badge></div>
-        </div>
-      </div>
-    </div>
+        );
+      })}
+    </Reveal>
   );
 }
