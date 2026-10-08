@@ -112,7 +112,7 @@ export const v2 = {
   memberCommitments: (wid, mid) => g(`${W(wid)}/members/${mid}/commitments`),
   resendInvite: (wid, mid) => p(`${W(wid)}/members/${mid}/resend`),
   invite_: (token) => g(`/v2/invites/${token}`),
-  acceptInvite: (token) => p(`/v2/invites/${token}/accept`),
+  acceptInvite: (token, password) => p(`/v2/invites/${token}/accept`, { password }),
 
   /* account */
   sessions: () => g("/v2/me/sessions"),
@@ -138,6 +138,14 @@ export const v2 = {
   updates: () => g("/v2/updates"),
   readUpdates: (ids) => p("/v2/updates/read", { ids }),
   search: (wid, q) => g(`${W(wid)}/search`, { q }),
+
+  /* onboarding */
+  onboarding: (wid) => g(`${W(wid)}/onboarding`),
+  onboardingConnect: (wid, provider, cancelled) => p(`${W(wid)}/onboarding/connect`, { provider, cancelled }),
+  onboardingStart: (wid, thread_ids, channel_ids) => p(`${W(wid)}/onboarding/start`, { thread_ids, channel_ids }),
+  onboardingProgress: (wid) => g(`${W(wid)}/onboarding/progress`),
+  onboardingFinish: (wid) => p(`${W(wid)}/onboarding/finish`),
+  connectUrl: (wid, provider) => p(`${W(wid)}/sources/connect`, { provider }),
 
   /* mock-only */
   scenario: () => g("/__mock/scenario"),

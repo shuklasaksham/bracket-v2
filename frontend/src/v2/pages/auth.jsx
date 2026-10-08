@@ -50,8 +50,7 @@ function GoogleG() {
 
 /* After any sign-in: no plan → /plan · incomplete profile → /onboarding · else next */
 function routeAfterAuth(user, isNew, next) {
-  if (!user?.plan && !user?.is_admin) return "/plan";
-  if (isNew || !user?.name || !user?.designation) return `/onboarding?next=${encodeURIComponent(next || "/app")}`;
+  if (isNew) return "/welcome";
   return next || "/app";
 }
 

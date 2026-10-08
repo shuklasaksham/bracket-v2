@@ -14,6 +14,7 @@ const PORT = Number(process.env.MOCK_PORT || 4300);
 const BUILD = path.resolve(__dirname, "../frontend/build");
 
 let S = build();
+S.primaryIds = new Set([S.workspaces[0].id]);
 let scenario = "default";
 let loggedIn = true;
 let sessionExpired = false;
@@ -41,6 +42,7 @@ const SCENARIOS = {
 
 function applyScenario(name) {
   S = build();
+  S.primaryIds = new Set([S.workspaces[0].id]);
   scenario = name;
   loggedIn = name !== "signed_out";
   sessionExpired = name === "session_expired";
@@ -66,7 +68,7 @@ function applyScenario(name) {
 /* ───────────────────────── helpers ───────────────────────── */
 class HttpError extends Error { constructor(status, detail, extra) { super(detail); this.status = status; this.extra = extra; } }
 const ws = (id) => { const w = S.workspaces.find((x) => x.id === id); if (!w) throw new HttpError(404, "Workspace not found"); return w; };
-const isPrimary = (id) => id === S.workspaces[0].id;
+const isPrimary = (id) => (S.primaryIds || new Set([S.workspaces[0].id])).has(id);
 const readOnlyReason = (w) => {
   if (w.role === "viewer") return "viewer";
   if (S.billing.status === "expired") return "trial_ended";
@@ -153,14 +155,15 @@ on("POST", "/api/v2/auth/password/reset", ({ body }) => {
   loggedIn = true; return { ok: true, user: S.me };
 });
 on("GET", "/api/auth/claimable", () => []);
-on("GET", "/api/auth/google/native/start", () => ({ url: "/auth/callback?mock=1" }));
+on("GET", "/api/auth/google/native/start", ({ q }) => ({ __redirect: `/auth/callback#session_id=mock&next=${encodeURIComponent(q.next || "/app")}` }));
+on("POST", "/api/auth/google/exchange", () => { loggedIn = true; return { user: S.me, is_new: false }; });
 
 /* invites */
 on("GET", "/api/v2/invites/:token", ({ p }) => {
   if (p.token === "expired") throw new HttpError(410, "This invite has expired.", { code: "expired", inviter: "Maya Rao", workspace: "Fintech Landing Page Redesign" });
   return { token: p.token, inviter: "Maya Rao", inviter_email: "maya@northlight.studio", workspace: { id: "p1", name: "Fintech Landing Page Redesign", client_name: "Acme Finance" }, role: "editor", email: "sam@northlight.studio" };
 });
-on("POST", "/api/v2/invites/:token/accept", () => ({ ok: true, workspace_id: "p1" }));
+on("POST", "/api/v2/invites/:token/accept", () => { loggedIn = true; return { ok: true, workspace_id: "p1", user: S.me }; });
 
 /* account */
 on("GET", "/api/v2/me/sessions", () => ({ sessions: S.sessions }));
@@ -696,6 +699,59 @@ on("POST", "/api/v2/w/:wid/files", ({ p, body }) => {
 on("POST", "/api/v2/w/:wid/files/:fid/replace", ({ p, body }) => { const f = S.files.find((x) => x.id === p.fid); Object.assign(f, { name: body.name || f.name, status: "reading", progress: { done: 0, total: f.pages || 4 }, reason: null }); setTimeout(() => { f.status = "in_memory"; delete f.progress; }, 3000); return f; });
 on("DELETE", "/api/v2/w/:wid/files/:fid", ({ p, q }) => { guardWrite(ws(p.wid)); const f = S.files.find((x) => x.id === p.fid); S.files = S.files.filter((x) => x.id !== p.fid); S.events.unshift({ id: uid("ev"), at: new Date().toISOString(), kind: "file_deleted", title: `File deleted — ${f?.name}`, actor: { provider: "notes", label: "Maya Rao" }, meta: q.keep === "0" ? "2 memories removed · restorable for 30 days" : "Memories kept, marked “source removed”", memory: q.keep === "0" }); return { ok: true, kept_memory: q.keep !== "0" }; });
 
+/* onboarding */
+const onb = {}; // wid → { connected: {gmail, slack}, started_at, threads, channels }
+on("POST", "/api/v2/w/:wid/onboarding/connect", ({ p, body }) => {
+  const o = (onb[p.wid] = onb[p.wid] || { connected: {} });
+  if (body.cancelled) { o.connected[body.provider] = "cancelled"; return o; }
+  o.connected[body.provider] = body.provider === "gmail" ? "maya@northlight.studio" : body.provider === "slack" ? "Northlight Studio" : true;
+  return o;
+});
+on("GET", "/api/v2/w/:wid/onboarding", ({ p }) => {
+  const o = onb[p.wid] || { connected: {} };
+  const w = ws(p.wid);
+  return {
+    workspace: wsSummary(w), connected: o.connected,
+    threads: [
+      { id: "t1", name: "Re: Homepage direction + next steps", from: "sarah.chen@acmefinance.com", messages: 14, at: mins(18), mentions: true, selected: true },
+      { id: "t2", name: "Kickoff recap — Acme Finance", from: "sarah.chen@acmefinance.com", messages: 6, at: d(-4), mentions: true, selected: true },
+      { id: "t3", name: "Proposal — Acme Finance website", from: "james.park@acmefinance.com", messages: 9, at: d(-12), mentions: true, selected: true },
+      { id: "t4", name: "Brand assets", from: "sarah.chen@acmefinance.com", messages: 3, at: d(-8), mentions: true, selected: false },
+      { id: "t9", name: "Team offsite planning", from: "team@northlight.studio", messages: 22, at: d(-13), mentions: false, selected: false },
+    ],
+    channels: o.connected.slack && o.connected.slack !== "cancelled" ? [{ id: "C1", name: "#acme-redesign", messages: 3880, selected: true }] : [],
+  };
+});
+on("POST", "/api/v2/w/:wid/onboarding/start", ({ p, body }) => {
+  const o = (onb[p.wid] = onb[p.wid] || { connected: {} });
+  Object.assign(o, { started_at: Date.now(), threads: body.thread_ids || [], channels: body.channel_ids || [] });
+  return { ok: true };
+});
+on("GET", "/api/v2/w/:wid/onboarding/progress", ({ p }) => {
+  const o = onb[p.wid] || { started_at: Date.now(), threads: ["t1", "t2", "t3"], channels: ["C1"] };
+  const t = Math.min(1, (Date.now() - (o.started_at || Date.now())) / 9000);
+  const found = [
+    { category: "Scope", text: "Desktop and mobile are included", provider: "gmail" },
+    { category: "Decisions", text: "Homepage direction changed to editorial", provider: "gmail" },
+    { category: "Requirements", text: "Performance and SEO are priorities", provider: "notes" },
+    { category: "Commitments", text: "Mobile screens promised by Friday", provider: "slack" },
+    { category: "Needs attention", text: "Tablet layouts requested — may change scope", provider: "gmail", attention: true },
+  ].slice(0, Math.max(1, Math.ceil(t * 5)));
+  const slackDone = Math.round(1204 + (3880 - 1204) * t);
+  return {
+    done: t >= 1,
+    gmail: { label: `${o.threads?.length || 3} threads · 29 messages`, done: true, pct: 1 },
+    slack: o.channels?.length ? { label: `#acme-redesign · ${slackDone.toLocaleString("en-US")} of 3,880`, done: t >= 1, pct: slackDone / 3880, eta: t >= 1 ? null : `About ${Math.max(1, Math.round(6 * (1 - t)))} min left` } : null,
+    found, found_count: Math.round(12 + 27 * t),
+  };
+});
+on("POST", "/api/v2/w/:wid/onboarding/finish", ({ p }) => {
+  // The mock fills the new workspace with the Figma story so every screen works.
+  const w = ws(p.wid);
+  if (!isPrimary(p.wid)) { S.primaryIds.add(p.wid); Object.assign(w, { summary: S.workspaces[0].summary, memory_updated_at: new Date().toISOString() }); }
+  return { ok: true, workspace: wsSummary(w), counts: { scope: 6, decision: 9, deliverable: 4, requirement: 7, commitment: 5, person: 8 }, read: "3 threads, 3,880 Slack messages and 2 notes", attention: { title: "Sarah asked to add tablet layouts while keeping the two-week timeline", review_id: "r1" } };
+});
+
 /* members */
 on("GET", "/api/v2/w/:wid/members", () => ({ members: S.members }));
 on("POST", "/api/v2/w/:wid/members/invite", ({ p, body }) => {
@@ -760,6 +816,7 @@ http.createServer((req, res) => {
         const p = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
         try {
           const out = r.fn({ p, q, body });
+          if (out && out.__redirect) { res.writeHead(302, { Location: out.__redirect }); return res.end(); }
           const delay = /\/ask$|\/draft$|\/accept$/.test(url.pathname) ? 650 : 90;
           return setTimeout(() => send(res, 200, out), delay);
         } catch (e) {

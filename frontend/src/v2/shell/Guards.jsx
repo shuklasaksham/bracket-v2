@@ -21,11 +21,9 @@ export function RequireAuth({ children }) {
   return children;
 }
 
-/* Signed-in + active plan (admins exempt). Mirrors backend paywall. */
+/* v2: every account starts on a 14-day trial, so there is no paywall before
+   the app. An expired trial is handled inside the app (read-only + banner). */
 export function RequirePlan({ children }) {
-  const { user, loading } = useAuth();
-  if (loading) return <FullScreenLoader />;
-  if (user && !user.plan && !user.is_admin) return <Navigate to="/plan" replace />;
   return children;
 }
 
