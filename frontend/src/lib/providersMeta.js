@@ -13,6 +13,9 @@ import {
   Layers,
   Sparkles,
   FileText,
+  File,
+  Mic,
+  SquareKanban,
 } from "lucide-react";
 import { BRAND_PATHS } from "./brandIcons";
 
@@ -33,6 +36,9 @@ export const PROVIDER_META = {
   linear:   { label: "Linear",          icon: Layers,        color: "#3B82F6", slug: "linear", brandColor: "#3B82F6" },
   bracket:  { label: "Bracket",          icon: Sparkles,      color: "#E4E4E7", slug: null },
   meeting:  { label: "Meeting notes",     icon: FileText,      color: "#E4E4E7", slug: null },
+  notes:    { label: "Notes",            icon: File,          color: "#E4E4E7", slug: null },
+  jira:     { label: "Jira",             icon: SquareKanban,  color: "#2684FF", slug: null },
+  meetings: { label: "Meetings",         icon: Mic,           color: "#E4E4E7", slug: null },
   manual:   { label: "Added by you",     icon: Sparkles,      color: "#E4E4E7", slug: null },
 };
 

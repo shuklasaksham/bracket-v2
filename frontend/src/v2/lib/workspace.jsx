@@ -1,95 +1,61 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { api, isPending } from "./data";
+import { v2 } from "./api2";
+import { useBilling, useOnline } from "./account";
 
-/* WorkspaceProvider — one Bracket "workspace" == one backend project.
-   Loads the project + memory + connections + history once and shares them
-   with every workspace screen (Overview, Review, Memory, Conversations, Ask,
-   Timeline, Sources). Screens call `refresh(...)` after mutations. */
+/* WorkspaceProvider — shared, lightweight state for the current workspace:
+   the workspace record (role, status, counts), its sources (for the sidebar)
+   and memory categories. Each screen loads its own detail data; after a
+   mutation it calls `refresh()` so counts in the shell stay correct. */
 
 const Ctx = createContext(null);
 
 export function WorkspaceProvider({ projectId, children }) {
-  const [project, setProject] = useState(null);
-  const [memory, setMemory] = useState(null); // { grouped, counts, total }
-  const [connections, setConnections] = useState(null);
-  const [notes, setNotes] = useState(null);
-  const [history, setHistory] = useState(null);
+  const [workspace, setWorkspace] = useState(null);
+  const [sources, setSources] = useState(null);
+  const [connectors, setConnectors] = useState([]);
+  const [categories, setCategories] = useState(null);
   const [lastSeen, setLastSeen] = useState(undefined);
   const [error, setError] = useState(null);
   const seenFor = useRef(null);
 
-  const loadProject = useCallback(async () => {
-    const { data } = await api.get(`/projects/${projectId}`);
-    setProject(data);
-    return data;
+  const refresh = useCallback(async () => {
+    try {
+      const [w, s, c] = await Promise.all([v2.workspace(projectId), v2.sources(projectId), v2.categories(projectId)]);
+      setWorkspace(w);
+      setSources(s.sources || []);
+      setConnectors(s.connectors || []);
+      setCategories(c.categories || []);
+      setError(null);
+    } catch (e) {
+      setError(e);
+    }
   }, [projectId]);
-  const loadMemory = useCallback(async () => {
-    const { data } = await api.get(`/projects/${projectId}/memory`);
-    setMemory(data);
-    return data;
-  }, [projectId]);
-  const loadConnections = useCallback(async () => {
-    const [c, n] = await Promise.all([
-      api.get(`/projects/${projectId}/connections`),
-      api.get(`/projects/${projectId}/notes`).catch(() => ({ data: { notes: [] } })),
-    ]);
-    setConnections(c.data.connections || []);
-    setNotes(n.data.notes || []);
-    return c.data.connections;
-  }, [projectId]);
-  const loadHistory = useCallback(async () => {
-    const { data } = await api.get(`/projects/${projectId}/history?limit=120`);
-    setHistory(data.entries || []);
-    return data.entries;
-  }, [projectId]);
-
-  const refresh = useCallback(
-    async (...parts) => {
-      const all = parts.length === 0;
-      const jobs = [];
-      if (all || parts.includes("project")) jobs.push(loadProject());
-      if (all || parts.includes("memory")) jobs.push(loadMemory());
-      if (all || parts.includes("connections")) jobs.push(loadConnections());
-      if (all || parts.includes("history")) jobs.push(loadHistory());
-      try {
-        await Promise.all(jobs);
-        setError(null);
-      } catch (e) {
-        setError(e);
-      }
-    },
-    [loadProject, loadMemory, loadConnections, loadHistory],
-  );
 
   useEffect(() => {
-    setProject(null); setMemory(null); setConnections(null); setNotes(null); setHistory(null); setError(null);
+    setWorkspace(null); setSources(null); setCategories(null); setError(null);
     refresh();
-    // Record the visit; keep the PREVIOUS timestamp for "Since your last visit".
     if (seenFor.current !== projectId) {
       seenFor.current = projectId;
-      api.post(`/projects/${projectId}/seen`).then(({ data }) => setLastSeen(data?.previous || null)).catch(() => setLastSeen(null));
+      v2.seen(projectId).then((d) => setLastSeen(d?.previous || null)).catch(() => setLastSeen(null));
     }
   }, [projectId, refresh]);
 
-  // Background freshness: poll lightweight data every 60s while visible.
   useEffect(() => {
-    const t = setInterval(() => {
-      if (document.visibilityState === "visible") refresh("memory", "connections", "history");
-    }, 60000);
-    return () => clearInterval(t);
+    const t = setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 30000);
+    const onFocus = () => refresh();
+    window.addEventListener("bk:refresh", onFocus);
+    return () => { clearInterval(t); window.removeEventListener("bk:refresh", onFocus); };
   }, [refresh]);
 
-  const items = useMemo(() => {
-    if (!memory?.grouped) return [];
-    return Object.values(memory.grouped).flat();
-  }, [memory]);
-  const pending = useMemo(() => items.filter(isPending), [items]);
-
-  const value = {
-    projectId, project, memory, items, pending, connections, notes, history, lastSeen, error,
-    refresh, setProject, setMemory,
-    loading: !project && !error,
-  };
+  const online = useOnline();
+  const { billing } = useBilling();
+  const readOnly = !online ? "offline" : billing?.status === "expired" ? "trial_ended" : workspace?.read_only || null;
+  const value = useMemo(() => ({
+    projectId, workspace, project: workspace, sources, connectors, categories, lastSeen, error, refresh, setWorkspace,
+    counts: workspace?.counts || {}, readOnly, canEdit: !readOnly, role: workspace?.role,
+    loading: !workspace && !error,
+      online,
+  }), [projectId, workspace, sources, connectors, categories, lastSeen, error, refresh, readOnly, online]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -98,24 +64,29 @@ export function useWorkspace() {
   if (!ctx) throw new Error("useWorkspace must be used inside <WorkspaceProvider>");
   return ctx;
 }
+export function useOptionalWorkspace() {
+  return useContext(Ctx);
+}
 
-/* Projects list (workspace switcher, settings). Shared module-level cache so
-   the switcher doesn't refetch on every navigation. */
-let _projectsCache = null;
+/* Ask every mounted workspace screen + shell to refetch (after mutations). */
+export const refreshAll = () => window.dispatchEvent(new Event("bk:refresh"));
+
+/* Workspace list (switcher, settings). Module-level cache. */
+let _cache = null;
 const _subs = new Set();
 export async function fetchProjects(force = false) {
-  if (_projectsCache && !force) return _projectsCache;
-  const { data } = await api.get("/projects");
-  _projectsCache = Array.isArray(data) ? data : [];
-  _subs.forEach((fn) => fn(_projectsCache));
-  return _projectsCache;
+  if (_cache && !force) return _cache;
+  const data = await v2.workspaces();
+  _cache = data;
+  _subs.forEach((fn) => fn(_cache));
+  return _cache;
 }
 export function useProjects() {
-  const [list, setList] = useState(_projectsCache);
+  const [data, setData] = useState(_cache);
   useEffect(() => {
-    _subs.add(setList);
-    fetchProjects().then(setList).catch(() => setList([]));
-    return () => _subs.delete(setList);
+    _subs.add(setData);
+    fetchProjects().then(setData).catch(() => setData({ workspaces: [], limit: null }));
+    return () => _subs.delete(setData);
   }, []);
-  return { projects: list, reload: () => fetchProjects(true) };
+  return { projects: data?.workspaces || null, limit: data?.limit || null, reload: () => fetchProjects(true) };
 }

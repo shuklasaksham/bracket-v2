@@ -58,3 +58,23 @@ export function LegacyProjectRedirect({ match }) {
   const id = window.location.pathname.split("/")[2];
   return <Navigate to={`/w/${id}`} replace />;
 }
+
+/* /settings[/:section] — settings live inside a workspace in v2; send people to
+   the most recent workspace's settings. */
+export function SettingsRedirect() {
+  const navigate = useNavigate();
+  const section = window.location.pathname.split("/")[2] || "profile";
+  useEffect(() => {
+    let off = false;
+    api.get("/projects")
+      .then(({ data }) => {
+        if (off) return;
+        const list = (Array.isArray(data) ? data : []).filter((p) => p && p.id && !p.archived);
+        const map = { workspaces: "workspace", account: "profile" };
+        navigate(list[0] ? `/w/${list[0].id}/settings/${map[section] || section}` : "/welcome", { replace: true });
+      })
+      .catch(() => !off && navigate("/welcome", { replace: true }));
+    return () => { off = true; };
+  }, [navigate, section]);
+  return <FullScreenLoader />;
+}

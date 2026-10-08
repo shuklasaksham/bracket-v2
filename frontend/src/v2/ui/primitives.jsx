@@ -8,14 +8,14 @@ import { PROVIDER_META } from "../../lib/providersMeta";
    Figma: Button · Variant (Primary/Secondary/Ghost/Danger) · Size (M/S) */
 const BTN_VARIANT = {
   primary: "bg-inverse text-fg-inverse hover:bg-inverse-hover",
-  secondary: "bg-raised text-fg border border-line hover:border-line-strong hover:bg-[#1b1c20]",
-  ghost: "text-fg-secondary hover:text-fg hover:bg-hover",
-  danger: "bg-danger-bg text-danger border border-danger/30 hover:border-danger/60",
+  secondary: "bg-raised text-fg border border-line hover:bg-white/[0.04]",
+  ghost: "text-fg hover:bg-white/[0.04]",
+  danger: "bg-danger-bg text-danger border border-danger hover:bg-danger/[0.16]",
   link: "text-fg-secondary hover:text-fg underline-offset-4 hover:underline px-0",
 };
 const BTN_SIZE = {
-  s: "h-7 px-2.5 text-body-s gap-1.5 rounded-md",
-  m: "h-8 px-3 text-body-m gap-2 rounded-md",
+  s: "h-7 px-2 text-[12px] leading-[18px] gap-1.5 rounded-md",
+  m: "h-8 px-3 text-[12px] leading-[18px] gap-2 rounded-md",
   l: "h-11 px-4 text-body-m gap-2 rounded-lg", // touch targets (mobile)
 };
 export const Button = forwardRef(function Button(
@@ -27,7 +27,7 @@ export const Button = forwardRef(function Button(
       ref={ref}
       className={cn(
         "inline-flex items-center justify-center font-medium whitespace-nowrap select-none",
-        "transition-colors duration-fast ease-out disabled:opacity-40 disabled:pointer-events-none",
+        "transition-[color,background-color,border-color,transform] duration-fast ease-out active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none",
         BTN_VARIANT[variant],
         BTN_SIZE[size],
         className,
@@ -54,7 +54,7 @@ export const IconButton = forwardRef(function IconButton(
       title={label}
       className={cn(
         "relative inline-flex items-center justify-center rounded-md text-fg-secondary",
-        "transition-colors duration-fast hover:text-fg hover:bg-hover disabled:opacity-40",
+        "transition-[color,background-color,transform] duration-fast ease-out hover:text-fg hover:bg-hover active:scale-[0.94] disabled:opacity-40 disabled:pointer-events-none",
         size === "l" ? "h-11 w-11" : size === "s" ? "h-6 w-6" : "h-7 w-7",
         active && "bg-selected text-fg",
         className,
@@ -70,16 +70,16 @@ export const IconButton = forwardRef(function IconButton(
 /* ───────────────────────── Badge ─────────────────────────
    Semantic status only. Tone: neutral / warning / danger / success / info */
 const BADGE_TONE = {
-  neutral: "bg-hover text-fg-secondary border-line",
-  warning: "bg-warning-bg text-warning border-warning/25",
-  danger: "bg-danger-bg text-danger border-danger/25",
-  success: "bg-success-bg text-success border-success/25",
-  info: "bg-info-bg text-info border-info/25",
+  neutral: "bg-white/[0.06] text-fg-secondary",
+  warning: "bg-warning-bg text-warning",
+  danger: "bg-danger-bg text-danger",
+  success: "bg-success-bg text-success",
+  info: "bg-info-bg text-info",
 };
 export function Badge({ tone = "neutral", dot, className, children }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 h-5 px-1.5 rounded-sm border text-caption whitespace-nowrap", BADGE_TONE[tone], className)}>
-      {dot && <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />}
+    <span className={cn("inline-flex items-center gap-1 h-5 px-2 rounded-[4px] text-[12px] font-medium leading-4 whitespace-nowrap", BADGE_TONE[tone], className)}>
+      {dot && <span className="h-[6px] w-[6px] rounded-full bg-current" aria-hidden="true" />}
       {children}
     </span>
   );
@@ -438,5 +438,17 @@ export function ListRow({ as: Tag = "div", leading, title, meta, prefix, trailin
       </span>
       {trailing}
     </Tag>
+  );
+}
+
+/* Google "G" — used on every Continue with Google button. */
+export function GoogleG({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
+      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96h-3.98v3.09C3.26 21.3 7.31 24 12 24z" />
+      <path fill="#FBBC05" d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z" />
+      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z" />
+    </svg>
   );
 }

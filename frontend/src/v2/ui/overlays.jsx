@@ -25,12 +25,12 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
       <RDialog.Portal>
-        <RDialog.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=open]:animate-fade-in" />
+        <RDialog.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
         <RDialog.Content
           className={cn(
             "bk fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2",
             "max-h-[calc(100vh-64px)] flex flex-col rounded-xl border border-line-strong bg-raised shadow-overlay",
-            "data-[state=open]:animate-scale-in focus:outline-none",
+            "data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out focus:outline-none",
             width,
           )}
         >
@@ -94,9 +94,9 @@ export function SidePanel({ open, onOpenChange, title, children, footer, width =
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
       <RDialog.Portal>
-        <RDialog.Overlay className="fixed inset-0 z-40 bg-overlay/40 data-[state=open]:animate-fade-in" />
+        <RDialog.Overlay className="fixed inset-0 z-40 bg-overlay/40 data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
         <RDialog.Content
-          className="bk fixed right-0 top-0 bottom-0 z-40 flex flex-col border-l border-line bg-surface shadow-overlay data-[state=open]:animate-slide-in-right focus:outline-none"
+          className="bk fixed right-0 top-0 bottom-0 z-40 flex flex-col border-l border-line bg-surface shadow-overlay data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right focus:outline-none"
           style={{ width: `min(${width}px, 100vw)` }}
         >
           <div className="flex h-14 items-center justify-between gap-3 border-b border-line-subtle px-5">
@@ -123,7 +123,7 @@ export function MenuContent({ children, align = "end", className, ...rest }) {
       <RMenu.Content
         align={align}
         sideOffset={6}
-        className={cn("bk z-50 min-w-[200px] rounded-lg border border-line-strong bg-raised p-1 shadow-popover data-[state=open]:animate-scale-in", className)}
+        className={cn("bk z-50 min-w-[200px] rounded-lg border border-line-strong bg-raised p-1 shadow-popover origin-[var(--radix-popper-transform-origin)] data-[state=open]:animate-pop-in data-[state=closed]:animate-scale-out", className)}
         {...rest}
       >
         {children}
@@ -164,7 +164,7 @@ export function Tooltip({ content, children, side = "top" }) {
     <RTooltip.Root delayDuration={350}>
       <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
       <RTooltip.Portal>
-        <RTooltip.Content side={side} sideOffset={6} className="bk z-50 rounded-md border border-line-strong bg-raised px-2 py-1 text-body-s text-fg shadow-popover animate-fade-in">
+        <RTooltip.Content side={side} sideOffset={6} className="bk z-50 rounded-md border border-line-strong bg-raised px-2 py-1 text-body-s text-fg shadow-popover data-[state=delayed-open]:animate-fade-in data-[state=instant-open]:animate-fade-in data-[state=closed]:animate-fade-out">
           {content}
         </RTooltip.Content>
       </RTooltip.Portal>
@@ -181,7 +181,7 @@ export function PopoverContent({ children, className, align = "end", ...rest }) 
       <RPopover.Content
         align={align}
         sideOffset={8}
-        className={cn("bk z-50 rounded-lg border border-line-strong bg-raised shadow-popover data-[state=open]:animate-scale-in focus:outline-none", className)}
+        className={cn("bk z-50 rounded-lg border border-line-strong bg-raised shadow-popover origin-[var(--radix-popper-transform-origin)] data-[state=open]:animate-pop-in data-[state=closed]:animate-scale-out focus:outline-none", className)}
         {...rest}
       >
         {children}

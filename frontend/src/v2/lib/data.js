@@ -13,7 +13,7 @@ export { api, formatApiError };
 export function useResource(fetcher, deps = [], { enabled = true } = {}) {
   const [state, setState] = useState({ data: null, error: null, loading: enabled });
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const run = useCallback(async () => {
     if (!enabled) return null;
     setState((s) => ({ ...s, loading: true }));

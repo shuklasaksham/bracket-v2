@@ -16,7 +16,9 @@ import { RequireAuth, Tool, AppEntry, FullScreenLoader } from "./v2/shell/Guards
 import MarketingLayout from "./v2/pages/marketing/Layout";
 import Landing from "./v2/pages/marketing/Landing";
 import { Pricing, Privacy, Terms, Security, NotFound } from "./v2/pages/marketing/Pages";
+import { UseCases, Changelog, About, Contact } from "./v2/pages/marketing/More";
 import { Login, AuthCallback, Onboarding, Claim, Plan, PaymentResult } from "./v2/pages/auth";
+import { ForgotPassword, ResetPassword, AcceptInvite } from "./v2/pages/account/Recovery";
 import WorkspaceLayout from "./v2/pages/workspace/WorkspaceLayout";
 import Overview from "./v2/pages/workspace/Overview";
 import Review from "./v2/pages/workspace/Review";
@@ -25,8 +27,13 @@ import Conversations from "./v2/pages/workspace/Conversations";
 import Ask from "./v2/pages/workspace/Ask";
 import Timeline from "./v2/pages/workspace/Timeline";
 import Sources from "./v2/pages/workspace/Sources";
+import Resolve from "./v2/pages/workspace/Resolve";
+import SourceDetail from "./v2/pages/workspace/SourceDetail";
+import Files from "./v2/pages/workspace/Files";
+import WorkspaceSettings from "./v2/pages/workspace/Settings";
 import Setup from "./v2/pages/Setup";
-import Settings from "./v2/pages/Settings";
+import { SettingsRedirect } from "./v2/shell/Guards";
+import MockStates from "./v2/pages/MockStates";
 
 import "./App.css";
 
@@ -66,11 +73,11 @@ export default function App() {
         <AuthProvider>
           <BrowserRouter>
             <TooltipProvider delayDuration={350}>
-              <CommandProvider>
-                <AskPanelProvider>
+              <AskPanelProvider>
+                <CommandProvider>
                   <AnalyticsTrackerMount />
                   <Toaster
-                    position="bottom-right"
+                    position="bottom-center"
                     mobileOffset={{ bottom: 96 }}
                     theme="dark"
                     toastOptions={{
@@ -87,6 +94,10 @@ export default function App() {
                         <Route path="/privacy" element={<Privacy />} />
                         <Route path="/terms" element={<Terms />} />
                         <Route path="/security" element={<Security />} />
+                        <Route path="/use-cases" element={<UseCases />} />
+                        <Route path="/changelog" element={<Changelog />} />
+                        <Route path="/about" element={<About />} />
+                        <Route path="/contact" element={<Contact />} />
                         <Route path="*" element={<NotFound />} />
                       </Route>
 
@@ -94,6 +105,10 @@ export default function App() {
                       <Route path="/login" element={<Login />} />
                       <Route path="/signup" element={<Login mode="signup" />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
+                      <Route path="/forgot-password" element={<ForgotPassword />} />
+                      <Route path="/reset-password" element={<ResetPassword />} />
+                      <Route path="/invite/:token" element={<AcceptInvite />} />
+                      <Route path="/__states" element={<MockStates />} />
                       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
                       <Route path="/claim" element={<RequireAuth><Claim /></RequireAuth>} />
                       <Route path="/plan" element={<RequireAuth><Plan /></RequireAuth>} />
@@ -104,16 +119,26 @@ export default function App() {
                       <Route path="/app" element={<Tool><AppEntry /></Tool>} />
                       <Route path="/welcome" element={<Tool><Setup first /></Tool>} />
                       <Route path="/connect" element={<Tool><Setup /></Tool>} />
-                      <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
-                      <Route path="/settings/:section" element={<RequireAuth><Settings /></RequireAuth>} />
+                      <Route path="/settings" element={<Tool><SettingsRedirect /></Tool>} />
+                      <Route path="/settings/:section" element={<Tool><SettingsRedirect /></Tool>} />
                       <Route path="/w/:id" element={<Tool><WorkspaceLayout /></Tool>}>
                         <Route index element={<Overview />} />
                         <Route path="review" element={<Review />} />
+                        <Route path="review/:rid" element={<Review />} />
+                        <Route path="resolve/:cid" element={<Resolve />} />
                         <Route path="memory" element={<Memory />} />
+                        <Route path="memory/:category" element={<Memory />} />
                         <Route path="conversations" element={<Conversations />} />
+                        <Route path="conversations/:tid" element={<Conversations />} />
                         <Route path="ask" element={<Ask />} />
                         <Route path="timeline" element={<Timeline />} />
+                        <Route path="timeline/:eid" element={<Timeline />} />
                         <Route path="sources" element={<Sources />} />
+                        <Route path="sources/:sid" element={<SourceDetail />} />
+                        <Route path="files" element={<Files />} />
+                        <Route path="files/:fid" element={<Files />} />
+                        <Route path="settings" element={<WorkspaceSettings />} />
+                        <Route path="settings/:section" element={<WorkspaceSettings />} />
                       </Route>
 
                       {/* v1.9 links keep working */}
@@ -132,8 +157,8 @@ export default function App() {
                       <Route path="/admin" element={<DialogProvider><ProtectedAdminRoute><LegacyAppShell><AdminDashboard /></LegacyAppShell></ProtectedAdminRoute></DialogProvider>} />
                     </Routes>
                   </Suspense>
-                </AskPanelProvider>
-              </CommandProvider>
+                </CommandProvider>
+              </AskPanelProvider>
             </TooltipProvider>
           </BrowserRouter>
         </AuthProvider>

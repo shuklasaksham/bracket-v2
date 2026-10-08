@@ -18,11 +18,11 @@ export function Mark({ size = 20, tone = "light", className }) {
   );
 }
 
-export function Logo({ to = "/", size = 20, wordmark = true, className }) {
+export function Logo({ to = "/", size = 22, wordmark = true, className }) {
   return (
     <Link to={to} className={cn("inline-flex items-center gap-2 text-fg", className)} aria-label="Bracket home">
       <Mark size={size} />
-      {wordmark && <span className="text-[18px] font-semibold tracking-[-0.4px] leading-none">bracket</span>}
+      {wordmark && <span className="text-[17px] font-semibold tracking-[-0.3px] leading-5">bracket</span>}
     </Link>
   );
 }

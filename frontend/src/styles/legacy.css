@@ -5681,9 +5681,6 @@ body::after {
    the root font-size compacts padding, gaps and type app-wide
    without touching layout logic.
    ============================================================ */
-@media (max-width: 1512px) { html, body, #root { font-size: 13.25px; } }
-@media (max-width: 1366px) { html, body, #root { font-size: 12.5px; } }
-@media (max-width: 1200px) { html, body, #root { font-size: 12px; } }
 
 /* ============================================================
    App workspace scale-to-fit for laptops (1366×768 etc.)

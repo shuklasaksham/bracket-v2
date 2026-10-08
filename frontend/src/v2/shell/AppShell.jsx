@@ -1,72 +1,146 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { NavLink, Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutGrid, Layers, MessagesSquare, History, Plus, MessageCircleQuestion, Folder, PanelLeft, Search,
-  ChevronDown, Settings as SettingsIcon, LogOut, CreditCard, Check, Plug, Archive, Bell,
+  LayoutGrid, Layers, MessagesSquare, History, Plus, MessageCircleQuestion, Folder, PanelLeft, Search, Menu as MenuIcon,
+  ChevronDown, Settings as SettingsIcon, LogOut, CreditCard, Check, Bell, Unlink, Users, ShieldCheck, User, Plug,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../lib/AuthContext";
 import { useWorkspace, useProjects } from "../lib/workspace";
-import { shortTime } from "../lib/data";
-import { Avatar, IconButton, Kbd, SourceMark, SyncStatus, initialsOf } from "../ui/primitives";
-import { Menu, MenuTrigger, MenuContent, MenuItem, MenuLabel, MenuSeparator, Sheet, Tooltip } from "../ui/overlays";
-import { useIsMobile, useIsRail, useIsCompact } from "../lib/useMedia";
+import { Avatar, IconButton, Kbd, SourceMark, initialsOf } from "../ui/primitives";
+import { Menu, MenuTrigger, MenuContent, MenuItem, MenuSeparator, Popover, PopoverTrigger, PopoverContent, Sheet, Tooltip } from "../ui/overlays";
+import { Count, t as T } from "../ui/motion";
+import { useIsMobile, useMedia } from "../lib/useMedia";
 import { Logo, Mark } from "./Logo";
 import NotificationsButton from "./Notifications";
 import { useCommand } from "./CommandPalette";
-import { useAskPanel } from "./AskPanel";
+import WorkspaceBanner from "./WorkspaceBanner";
 import DemoBar from "./DemoBar";
 
-const NAV = [
-  { to: "", label: "Overview", icon: LayoutGrid, end: true },
-  { to: "memory", label: "Memory", icon: Layers, countKey: "pending" },
-  { to: "conversations", label: "Conversations", icon: MessagesSquare },
-  { to: "timeline", label: "Timeline", icon: History },
-];
+/* Responsive model (Figma › Breakpoints & layout):
+   ≥1280 sidebar (260 / 232 at 1280) — the toggle collapses it to the icon rail
+   1024–1279 icon rail — the toggle opens the full sidebar as an overlay drawer
+   768–1023 compact header + nav drawer
+   <768 mobile header + tab bar */
+
+const sinceShort = (iso) => {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 3600) return `${Math.max(1, Math.round(s / 60))}m`;
+  if (s < 86400) return `${Math.round(s / 3600)}h`;
+  return `${Math.round(s / 86400)}d`;
+};
+const ago = (iso) => {
+  const x = sinceShort(iso);
+  return x ? `${x} ago` : "";
+};
 
 /* ───────────────────────── Workspace switcher ───────────────────────── */
-function WorkspaceSwitcher({ compact }) {
-  const { project } = useWorkspace();
+function SwitcherList({ onPick, onNew, currentId }) {
   const { projects } = useProjects();
+  const [q, setQ] = useState("");
+  const groups = useMemo(() => {
+    const list = (projects || []).filter((p) => p.status !== "deletion_scheduled" && (!q || `${p.name} ${p.client_name} ${p.business}`.toLowerCase().includes(q.toLowerCase())));
+    const by = new Map();
+    list.forEach((p) => {
+      const k = p.business || p.client_name || "Personal";
+      if (!by.has(k)) by.set(k, []);
+      by.get(k).push(p);
+    });
+    return [...by.entries()];
+  }, [projects, q]);
+  const meta = (p) => {
+    if (p.status === "archived") return "Archived";
+    if (p.attention) return `${p.attention} need${p.attention === 1 ? "s" : ""} attention`;
+    return p.sources_label || "";
+  };
+  return (
+    <div>
+      <div className="flex items-center gap-2 border-b border-line-subtle px-3 h-10">
+        <Search size={14} className="text-fg-tertiary" />
+        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a workspace" className="flex-1 bg-transparent text-body-m text-fg placeholder:text-fg-tertiary outline-none" aria-label="Find a workspace" />
+      </div>
+      <div className="max-h-[360px] overflow-y-auto p-1">
+        {projects === null && <p className="px-2 py-3 text-body-s text-fg-tertiary">Loading…</p>}
+        {projects && groups.length === 0 && <p className="px-2 py-3 text-body-s text-fg-tertiary">No workspace matches “{q}”.</p>}
+        {groups.map(([biz, list]) => (
+          <div key={biz} className="pb-1">
+            <p className="eyebrow px-2 pt-2 pb-1">{biz}</p>
+            {list.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => onPick(p)}
+                className={cn("flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-body-m transition-colors duration-fast hover:bg-hover", p.id === currentId ? "bg-hover text-fg" : "text-fg-secondary")}
+              >
+                <span className="flex-1 truncate">{p.name}</span>
+                <span className="text-body-s text-fg-tertiary truncate max-w-[140px]">{meta(p)}</span>
+                {p.id === currentId && <Check size={14} className="text-fg" />}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-line-subtle p-1">
+        <button onClick={onNew} className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-body-m text-fg-secondary hover:bg-hover hover:text-fg">
+          <Plus size={14} /> New workspace
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceSwitcher({ variant = "bar" }) {
+  const { project } = useWorkspace();
+  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const active = (projects || []).filter((p) => !p.archived);
   const client = project?.client_name || "";
   const name = project?.name || "Workspace";
+  useEffect(() => {
+    const onKey = (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "o") { e.preventDefault(); setOpen(true); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const chip = (
+    <span className={cn("inline-flex shrink-0 items-center justify-center rounded-md bg-raised border border-line font-semibold text-fg", variant === "bar" ? "h-6 w-6 text-[10px]" : "h-7 w-7 text-[11px]")}>
+      {project?.initials || initialsOf(client || name)}
+    </span>
+  );
   return (
-    <Menu>
-      <MenuTrigger asChild>
-        <button className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-hover transition-colors duration-fast" aria-label="Switch workspace">
-          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-raised border border-line text-[10px] font-semibold text-fg">
-            {initialsOf(client || name)}
-          </span>
-          {!compact && client && <span className="hidden md:inline text-body-m text-fg-tertiary truncate max-w-[160px]">{client}</span>}
-          {!compact && client && <span className="hidden md:inline text-fg-disabled">/</span>}
-          <span className="text-body-m text-fg truncate max-w-[220px] md:max-w-[300px]">{name}</span>
-          <ChevronDown size={14} className="shrink-0 text-fg-tertiary" />
-        </button>
-      </MenuTrigger>
-      <MenuContent align="start" className="w-[300px]">
-        <MenuLabel>Workspaces</MenuLabel>
-        <div className="max-h-[320px] overflow-y-auto">
-          {active.map((p) => (
-            <MenuItem key={p.id} onSelect={() => navigate(`/w/${p.id}`)} checked={p.id === project?.id}>
-              {p.name || "Untitled"}
-              {p.is_demo ? <span className="ml-2 text-body-s text-fg-tertiary">Demo</span> : null}
-            </MenuItem>
-          ))}
-        </div>
-        <MenuSeparator />
-        <MenuItem icon={Plus} onSelect={() => navigate("/connect?new=1")}>New workspace</MenuItem>
-        <MenuItem icon={Archive} onSelect={() => navigate("/settings/workspaces")}>All workspaces</MenuItem>
-      </MenuContent>
-    </Menu>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        {variant === "bar" ? (
+          <button className="flex min-w-0 items-center gap-2 rounded-md px-2 h-8 hover:bg-hover transition-colors duration-fast" aria-label="Switch workspace (Ctrl O)">
+            {chip}
+            {client && <span className="hidden lg:inline text-body-m text-fg-tertiary truncate max-w-[160px]">{client}</span>}
+            {client && <span className="hidden lg:inline text-fg-disabled">/</span>}
+            <span className="text-body-m text-fg truncate max-w-[220px] xl:max-w-[300px]">{name}</span>
+            <ChevronDown size={14} className={cn("shrink-0 text-fg-tertiary transition-transform duration-fast", open && "rotate-180")} />
+          </button>
+        ) : (
+          <button className="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-label="Switch workspace">
+            {chip}
+            <span className="min-w-0">
+              <span className="block truncate text-body-m font-medium text-fg">{name}</span>
+              {client && <span className="block truncate text-body-s text-fg-tertiary">{client}</span>}
+            </span>
+            <ChevronDown size={14} className="shrink-0 text-fg-tertiary" />
+          </button>
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[320px] p-0">
+        <SwitcherList currentId={project?.id} onPick={(p) => { setOpen(false); navigate(`/w/${p.id}`); }} onNew={() => { setOpen(false); navigate("/connect?new=1"); }} />
+      </PopoverContent>
+    </Popover>
   );
 }
 
 /* ───────────────────────── User menu ───────────────────────── */
 function UserMenu() {
   const { user, logout } = useAuth();
+  const { projectId } = useWorkspace();
   const navigate = useNavigate();
+  const s = (x) => navigate(`/w/${projectId}/settings/${x}`);
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -74,15 +148,18 @@ function UserMenu() {
           <Avatar name={user?.name} email={user?.email} src={user?.picture} />
         </button>
       </MenuTrigger>
-      <MenuContent className="w-[240px]">
+      <MenuContent className="w-[248px]">
         <div className="px-2 py-2">
-          <p className="text-title-s text-fg truncate">{user?.name || "Your account"}</p>
+          <p className="text-body-m font-medium text-fg truncate">{user?.name || "Your account"}</p>
           <p className="text-body-s text-fg-tertiary truncate">{user?.email}</p>
         </div>
         <MenuSeparator />
-        <MenuItem icon={SettingsIcon} onSelect={() => navigate("/settings")}>Settings</MenuItem>
-        <MenuItem icon={CreditCard} onSelect={() => navigate("/settings/billing")}>Billing</MenuItem>
-        <MenuItem icon={Plug} onSelect={() => navigate("/connect")}>Connect a tool</MenuItem>
+        <MenuItem icon={User} onSelect={() => s("profile")}>Profile</MenuItem>
+        <MenuItem icon={Bell} onSelect={() => s("notifications")}>Notifications</MenuItem>
+        <MenuItem icon={SettingsIcon} onSelect={() => s("workspace")}>Workspace settings</MenuItem>
+        <MenuItem icon={Users} onSelect={() => s("members")}>Members</MenuItem>
+        <MenuItem icon={CreditCard} onSelect={() => s("billing")}>Billing</MenuItem>
+        <MenuItem icon={ShieldCheck} onSelect={() => s("privacy")}>Privacy & data</MenuItem>
         <MenuSeparator />
         <MenuItem icon={LogOut} onSelect={async () => { await logout(); navigate("/login"); }}>Sign out</MenuItem>
       </MenuContent>
@@ -91,136 +168,194 @@ function UserMenu() {
 }
 
 /* ───────────────────────── Sidebar ───────────────────────── */
-function SidebarItem({ to, end, icon: Icon, label, count, rail, dot }) {
-  const link = (
-    <NavLink
-      to={to}
-      end={end}
-      className={({ isActive }) =>
-        cn(
-          "group flex items-center gap-2.5 rounded-md text-body-m transition-colors duration-fast",
-          rail ? "h-9 w-9 justify-center mx-auto" : "h-8 px-2",
-          isActive ? "bg-selected text-fg" : "text-fg-secondary hover:bg-hover hover:text-fg",
-        )
-      }
-    >
-      <span className="relative">
-        <Icon size={16} strokeWidth={1.75} />
-        {rail && (dot || count > 0) && <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />}
-      </span>
-      {!rail && <span className="flex-1 truncate">{label}</span>}
-      {!rail && count > 0 && <span className="num text-body-s text-fg-tertiary">{count}</span>}
-    </NavLink>
-  );
-  return rail ? <Tooltip content={label} side="right">{link}</Tooltip> : link;
+const NAV = [
+  { to: "", label: "Overview", icon: LayoutGrid, end: true },
+  { to: "memory", label: "Memory", icon: Layers, count: "needs_review", dot: "pending" },
+  { to: "conversations", label: "Conversations", icon: MessagesSquare, count: "needs_reply", dot: "needs_reply" },
+  { to: "timeline", label: "Timeline", icon: History },
+];
+
+function RailTip({ rail, label, children }) {
+  // Wrap in a span: Radix Slot would merge its className into NavLink’s function className.
+  return rail ? <Tooltip content={label} side="right"><span className="block">{children}</span></Tooltip> : children;
 }
 
-function Sidebar({ rail, onNavigate }) {
-  const { projectId, pending, connections, notes } = useWorkspace();
-  const ask = useAskPanel();
-  const base = `/w/${projectId}`;
-  const conns = (connections || []).filter((c) => c.provider !== "meeting");
-  const unhealthy = conns.filter((c) => c.health && c.health.level && c.health.level !== "green");
+function NavRow({ to, end, icon: Icon, label, count, dot, rail, mark, trailing, onClick, active: forceActive }) {
+  const location = useLocation();
+  const inner = (isActive) => (
+    <>
+      {isActive && (
+        <motion.span layoutId="nav-active" className="absolute inset-0 rounded-md bg-selected" transition={T.base} aria-hidden="true" />
+      )}
+      <span className="relative flex shrink-0 items-center justify-center" style={{ width: 16, height: 16 }}>
+        {mark || <Icon size={16} strokeWidth={1.75} />}
+        {rail && dot ? <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" /> : null}
+      </span>
+      {!rail && <span className={cn("relative flex-1 truncate", isActive ? "font-medium text-fg" : "")}>{label}</span>}
+      {!rail && trailing != null && trailing !== "" && <span className="relative flex items-center font-mono text-[12px] text-fg-tertiary">{trailing}</span>}
+      {!rail && count > 0 && <Count value={count} className="relative text-caption text-fg-tertiary" />}
+    </>
+  );
+  const cls = (isActive) => cn(
+    "group relative flex items-center rounded-md text-body-m transition-colors duration-fast outline-offset-[-2px]",
+    rail ? "h-10 w-10 justify-center mx-auto" : cn("h-8 px-2", mark ? "gap-3" : "gap-2"),
+    isActive ? "text-fg" : "text-fg-secondary hover:bg-hover hover:text-fg",
+  );
+  if (!to) {
+    return (
+      <RailTip rail={rail} label={label}>
+        <button onClick={onClick} className={cls(forceActive)} aria-label={rail ? label : undefined}>{inner(forceActive)}</button>
+      </RailTip>
+    );
+  }
   return (
-    <nav aria-label="Workspace" className={cn("flex h-full flex-col bg-sidebar border-r border-line-subtle", rail ? "w-16" : "w-nav")} onClick={onNavigate}>
-      <div className={cn("flex h-14 items-center shrink-0", rail ? "justify-center" : "px-4")}>
+    <RailTip rail={rail} label={label}>
+      <NavLink to={to} end={end} onClick={onClick} aria-label={rail ? label : undefined} className={({ isActive }) => cls(isActive || (forceActive ?? false))} state={location.state}>
+        {({ isActive }) => inner(isActive || (forceActive ?? false))}
+      </NavLink>
+    </RailTip>
+  );
+}
+
+function GroupLabel({ rail, children, action }) {
+  if (rail) return <div className="mx-auto my-3 h-px w-8 bg-line-subtle" aria-hidden="true" />;
+  return (
+    <div className="mt-5 mb-0.5 flex h-7 items-center justify-between pl-2 pr-1">
+      <p className="eyebrow">{children}</p>
+      {action}
+    </div>
+  );
+}
+
+function Sidebar({ rail, onNavigate, width }) {
+  const { projectId, counts, sources } = useWorkspace();
+  const base = `/w/${projectId}`;
+  const list = (sources || []).filter((s) => s.status !== "disconnected" || true);
+  const issues = list.filter((s) => s.status === "error" || s.health === "reconnect");
+  const healthy = !issues.length;
+  return (
+    <motion.nav
+      aria-label="Workspace"
+      initial={false}
+      animate={{ width }}
+      transition={T.base}
+      className="flex h-full shrink-0 flex-col overflow-hidden bg-sidebar border-r border-line-subtle"
+      onClick={onNavigate}
+    >
+      <div className={cn("flex h-[52px] shrink-0 items-center", rail ? "justify-center" : "pl-5")}>
         {rail ? <Link to="/app" aria-label="Bracket home"><Mark size={22} /></Link> : <Logo to="/app" />}
       </div>
-      <div className="scroll-pane flex-1 px-2 pb-3">
-        {!rail && <p className="eyebrow px-2 pt-3 pb-1.5">Workspace</p>}
-        <div className={cn("space-y-0.5", rail && "pt-2")}>
+      <div className={cn("scroll-pane flex-1 pb-3", rail ? "px-3" : "px-3")}>
+        {!rail ? <div className="mt-5 mb-0.5 flex h-7 items-center pl-2"><p className="eyebrow">Workspace</p></div> : <div className="h-3" />}
+        <div className="space-y-0.5">
           {NAV.map((n) => (
-            <SidebarItem key={n.label} to={`${base}${n.to ? "/" + n.to : ""}`} end={n.end} icon={n.icon} label={n.label} rail={rail} count={n.countKey === "pending" ? pending.length : 0} />
+            <NavRow key={n.label} to={`${base}${n.to ? "/" + n.to : ""}`} end={n.end} icon={n.icon} label={n.label} rail={rail}
+              count={n.count ? counts[n.count] : 0} dot={n.dot ? counts[n.dot] > 0 : false} />
           ))}
         </div>
 
-        {!rail ? (
-          <div className="flex items-center justify-between px-2 pt-5 pb-1.5">
-            <p className="eyebrow">Sources</p>
-            <Link to={`${base}/sources?add=1`} className="text-fg-tertiary hover:text-fg rounded p-0.5" aria-label="Add source">
-              <Plus size={14} />
-            </Link>
-          </div>
-        ) : <div className="my-3 mx-3 h-px bg-line-subtle" />}
+        <GroupLabel rail={rail} action={
+          <Tooltip content="Add source"><Link to={`${base}/sources?add=1`} className="flex h-5 w-5 items-center justify-center rounded-md text-fg-tertiary hover:bg-hover hover:text-fg" aria-label="Add source"><Plus size={14} /></Link></Tooltip>
+        }>Sources</GroupLabel>
         <div className="space-y-0.5">
-          {conns.map((c) => (
-            rail ? (
-              <Tooltip key={c.id} content={c.source_name} side="right">
-                <NavLink to={`${base}/sources?c=${c.id}`} className="flex h-9 w-9 mx-auto items-center justify-center rounded-md hover:bg-hover">
-                  <SourceMark provider={c.provider} size={15} />
-                </NavLink>
-              </Tooltip>
-            ) : (
-              <NavLink key={c.id} to={`${base}/sources?c=${c.id}`} className="flex h-8 items-center gap-2.5 rounded-md px-2 text-body-m text-fg-secondary hover:bg-hover hover:text-fg">
-                <SourceMark provider={c.provider} size={15} />
-                <span className="flex-1 truncate">{c.source_name}</span>
-                <span className="text-body-s text-fg-tertiary num">{shortTime(c.last_activity_at || c.last_synced_at)}</span>
-              </NavLink>
-            )
-          ))}
-          {conns.length === 0 && !rail && (
-            <Link to={`${base}/sources?add=1`} className="flex h-8 items-center gap-2 rounded-md px-2 text-body-s text-fg-tertiary hover:text-fg hover:bg-hover">
-              <Plus size={14} /> Connect a source
-            </Link>
-          )}
-        </div>
-
-        {!rail ? <p className="eyebrow px-2 pt-5 pb-1.5">Tools</p> : <div className="my-3 mx-3 h-px bg-line-subtle" />}
-        <div className="space-y-0.5">
-          {rail ? (
-            <Tooltip content="Ask Bracket ⌘J" side="right">
-              <button onClick={() => ask.open()} className="flex h-9 w-9 mx-auto items-center justify-center rounded-md text-fg-secondary hover:bg-hover hover:text-fg" aria-label="Ask Bracket">
-                <MessageCircleQuestion size={16} strokeWidth={1.75} />
-              </button>
+          {list.map((s) => {
+            const bad = s.status === "error" || s.health === "reconnect";
+            return (
+              <NavRow key={s.id} to={`${base}/sources/${s.id}`} label={s.label} rail={rail}
+                mark={<span className={cn("relative", (s.status === "paused" || s.status === "disconnected") && "opacity-50")}><SourceMark provider={s.provider} size={16} />{bad && rail && <Unlink size={10} className="absolute -right-1.5 -bottom-1 text-danger" />}</span>}
+                trailing={bad ? <Unlink size={14} className="text-danger" aria-label="Needs reconnecting" /> : s.status === "paused" ? "paused" : s.status === "disconnected" ? "off" : sinceShort(s.last_sync_at)} />
+            );
+          })}
+          {rail && (
+            <Tooltip content="Add source" side="right">
+              <Link to={`${base}/sources?add=1`} className="mx-auto flex h-10 w-10 items-center justify-center rounded-md text-fg-secondary hover:bg-hover hover:text-fg" aria-label="Add source">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md border border-line"><Plus size={14} /></span>
+              </Link>
             </Tooltip>
-          ) : (
-            <SidebarItem to={`${base}/ask`} icon={MessageCircleQuestion} label="Ask Bracket" />
           )}
-          <SidebarItem to={`${base}/sources`} icon={Folder} label="Sources & files" rail={rail} count={(notes || []).length} />
+          {!rail && list.length === 0 && (
+            <Link to={`${base}/sources?add=1`} className="flex h-8 items-center gap-2 rounded-md px-2 text-body-m text-fg-tertiary hover:text-fg hover:bg-hover">
+              <Plug size={16} strokeWidth={1.75} /> Connect a source
+            </Link>
+          )}
+        </div>
+
+        <GroupLabel rail={rail}>Tools</GroupLabel>
+        <div className="space-y-0.5">
+          <NavRow to={`${base}/ask`} icon={MessageCircleQuestion} label="Ask Bracket" rail={rail} />
+          <NavRow to={`${base}/files`} icon={Folder} label="Files" rail={rail} count={counts.files} />
         </div>
       </div>
-      <div className={cn("shrink-0 border-t border-line-subtle", rail ? "py-3 flex justify-center" : "px-4 py-3")}>
+      <div className={cn("shrink-0", rail ? "flex justify-center py-4" : "mx-3 border-t border-line-subtle px-2 pt-3 pb-4")}>
         {rail ? (
-          <span className={cn("h-2 w-2 rounded-full", unhealthy.length ? "bg-warning" : "bg-success")} aria-label={unhealthy.length ? "A source needs attention" : "All sources up to date"} />
-        ) : unhealthy.length ? (
-          <Link to={`${base}/sources`}><SyncStatus state="warning" label={`${unhealthy.length} source${unhealthy.length > 1 ? "s need" : " needs"} attention`} /></Link>
+          <Tooltip content={healthy ? "All sources up to date" : `${issues[0].label} needs attention`} side="right">
+            <Link to={`${base}/sources`} className={cn("h-2 w-2 rounded-full", healthy ? "bg-success" : "bg-danger")} aria-label={healthy ? "All sources up to date" : "A source needs attention"} />
+          </Tooltip>
         ) : (
-          <SyncStatus state="synced" label={conns.length ? "All sources up to date" : "No sources connected"} />
+          <Link to={`${base}/sources`} className="flex items-center gap-2 text-body-s text-fg-tertiary hover:text-fg-secondary" aria-live="polite">
+            <span className={cn("h-1.5 w-1.5 rounded-full", healthy ? "bg-success" : "bg-danger animate-pulse-soft")} aria-hidden="true" />
+            {healthy ? (list.length ? "All sources up to date" : "No sources connected") : `${issues[0].label} needs reconnecting`}
+          </Link>
         )}
       </div>
-    </nav>
+    </motion.nav>
   );
 }
 
-/* ───────────────────────── Top bar (≥768) ───────────────────────── */
-function TopBar({ onToggleNav, navHidden, compact }) {
-  const cmd = useCommand();
+/* ───────────────────────── Breadcrumb ───────────────────────── */
+const SETTINGS_LABEL = { profile: "Profile", notifications: "Notifications", workspace: "Workspace", members: "Members", billing: "Billing", sources: "Sources", privacy: "Privacy & data" };
+function useCrumbs() {
   const location = useLocation();
-  const crumb = useMemo(() => {
-    const seg = location.pathname.split("/")[3];
-    return { memory: "Memory", conversations: "Conversations", timeline: "Timeline", ask: "Ask Bracket", sources: "Sources & files", review: "Review changes" }[seg];
-  }, [location.pathname]);
+  const { categories, sources } = useWorkspace();
+  const parts = location.pathname.split("/").slice(3);
+  const [a, b] = parts;
+  if (!a) return [];
+  if (a === "memory") {
+    const c = (categories || []).find((x) => x.key === b);
+    const view = { "needs-review": "Needs review", recent: "Recently changed" }[b];
+    return ["Memory", c?.label || view].filter(Boolean);
+  }
+  if (a === "sources") return ["Sources", (sources || []).find((s) => s.id === b)?.label].filter(Boolean);
+  if (a === "settings") return ["Settings", SETTINGS_LABEL[b || "profile"]];
+  return [{ review: "Review changes", resolve: "Resolve conflict", conversations: "Conversations", timeline: "Timeline", ask: "Ask Bracket", files: "Files" }[a]].filter(Boolean);
+}
+
+/* ───────────────────────── Top bar ───────────────────────── */
+function TopBar({ onToggleNav, navLabel, compact }) {
+  const cmd = useCommand();
+  const crumbs = useCrumbs();
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line-subtle bg-app px-3 md:px-4">
-      <IconButton icon={PanelLeft} label={navHidden ? "Show sidebar" : "Hide sidebar"} onClick={onToggleNav} />
-      <WorkspaceSwitcher compact={compact} />
-      {crumb && !compact && (
-        <span className="hidden lg:flex items-center gap-2 text-body-m text-fg-tertiary truncate">
-          <span className="text-fg-disabled">/</span>{crumb}
-        </span>
+    <header className={cn("flex h-16 shrink-0 items-center gap-2 border-b border-line-subtle bg-app", compact ? "h-14 px-3" : "px-4")}>
+      <IconButton icon={compact ? MenuIcon : PanelLeft} label={navLabel} onClick={onToggleNav} size={compact ? "l" : "m"} />
+      {compact ? (
+        <div className="flex min-w-0 flex-1"><WorkspaceSwitcher variant="compact" /></div>
+      ) : (
+        <>
+          <WorkspaceSwitcher />
+          <AnimatePresence mode="popLayout" initial={false}>
+            {crumbs.length > 0 && (
+              <motion.span key={crumbs.join("/")} initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={T.fast}
+                className="hidden lg:flex min-w-0 items-center gap-1.5 text-body-s text-fg-tertiary">
+                {crumbs.map((c, i) => <React.Fragment key={i}><span className="text-fg-disabled">›</span><span className="truncate">{c}</span></React.Fragment>)}
+              </motion.span>
+            )}
+          </AnimatePresence>
+          <div className="flex-1" />
+        </>
       )}
-      <div className="flex-1" />
-      <button
-        onClick={() => cmd.open()}
-        className="hidden md:flex h-8 w-[220px] items-center gap-2 rounded-md border border-line-control/50 bg-surface px-2.5 text-body-m text-fg-tertiary hover:border-line-control transition-colors duration-fast"
-        aria-label="Search or jump to (Command K)"
-      >
-        <Search size={14} />
-        <span className="flex-1 text-left">Search or jump to…</span>
-        <Kbd>⌘K</Kbd>
-      </button>
-      <IconButton icon={Search} label="Search" className="md:hidden" onClick={() => cmd.open()} />
-      <NotificationsButton />
+      {!compact && (
+        <button
+          onClick={() => cmd.open()}
+          className="flex h-8 w-[220px] items-center gap-2 rounded-md border border-line-control/60 bg-surface pl-3 pr-2 text-body-m text-fg-tertiary hover:border-line-control hover:text-fg-secondary transition-colors duration-fast"
+          aria-label="Search or jump to (Ctrl K)"
+        >
+          <Search size={14} />
+          <span className="flex-1 text-left">Search or jump to…</span>
+          <Kbd>⌘K</Kbd>
+        </button>
+      )}
+      {compact && <IconButton icon={Search} label="Search" size="l" onClick={() => cmd.open()} />}
+      <NotificationsButton size={compact ? "l" : "m"} />
       <UserMenu />
     </header>
   );
@@ -229,25 +364,25 @@ function TopBar({ onToggleNav, navHidden, compact }) {
 /* ───────────────────────── Mobile ───────────────────────── */
 const TABS = [
   { to: "", label: "Overview", icon: LayoutGrid, end: true },
-  { to: "memory", label: "Memory", icon: Layers },
+  { to: "memory", label: "Memory", icon: Layers, dot: "pending" },
   { to: "ask", label: "Ask", icon: MessageCircleQuestion },
-  { to: "conversations", label: "Conversations", icon: MessagesSquare },
+  { to: "conversations", label: "Conversations", icon: MessagesSquare, dot: "needs_reply" },
   { to: "timeline", label: "Timeline", icon: History },
 ];
 function MobileHeader({ onOpenSheet }) {
   const { project } = useWorkspace();
   const cmd = useCommand();
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line-subtle bg-app px-3">
-      <button onClick={onOpenSheet} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-label="Workspace and account">
-        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-raised border border-line text-[10px] font-semibold">
-          {initialsOf(project?.client_name || project?.name || "")}
+    <header className="flex h-14 shrink-0 items-center gap-1 border-b border-line-subtle bg-app pl-4 pr-2">
+      <button onClick={onOpenSheet} className="flex min-w-0 flex-1 items-center gap-2.5 text-left h-11" aria-label="Workspace and account">
+        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-raised border border-line text-[11px] font-semibold">
+          {project?.initials || initialsOf(project?.client_name || project?.name || "")}
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-title-s text-fg">{project?.name || "Workspace"}</span>
+          <span className="block truncate text-body-m font-medium text-fg">{project?.name || "Workspace"}</span>
           {project?.client_name && <span className="block truncate text-body-s text-fg-tertiary">{project.client_name}</span>}
         </span>
-        <ChevronDown size={14} className="shrink-0 text-fg-tertiary" />
+        <ChevronDown size={16} className="shrink-0 text-fg-tertiary" />
       </button>
       <IconButton icon={Search} label="Search" size="l" onClick={() => cmd.open()} />
       <NotificationsButton size="l" />
@@ -255,23 +390,27 @@ function MobileHeader({ onOpenSheet }) {
   );
 }
 function TabBar() {
-  const { projectId, pending } = useWorkspace();
+  const { projectId, counts } = useWorkspace();
   const base = `/w/${projectId}`;
   return (
-    <nav aria-label="Primary" className="shrink-0 border-t border-line-subtle bg-app safe-bottom pt-1.5">
+    <nav aria-label="Primary" className="shrink-0 border-t border-line-subtle bg-app safe-bottom">
       <div className="grid grid-cols-5">
         {TABS.map((t) => (
           <NavLink
             key={t.label}
             to={`${base}${t.to ? "/" + t.to : ""}`}
             end={t.end}
-            className={({ isActive }) => cn("flex flex-col items-center gap-1 py-1 text-[11px] font-medium", isActive ? "text-fg" : "text-fg-tertiary")}
+            className={({ isActive }) => cn("relative flex h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-fast", isActive ? "text-fg" : "text-fg-tertiary")}
           >
-            <span className="relative">
-              <t.icon size={20} strokeWidth={1.75} />
-              {t.label === "Memory" && pending.length > 0 && <span className="absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full bg-warning" />}
-            </span>
-            {t.label}
+            {({ isActive }) => (
+              <>
+                <span className="relative">
+                  <motion.span animate={{ scale: isActive ? 1.06 : 1 }} transition={T.fast} className="block"><t.icon size={22} strokeWidth={1.6} /></motion.span>
+                  {t.dot && counts[t.dot] > 0 && <span className="absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full bg-warning" />}
+                </span>
+                {t.label}
+              </>
+            )}
           </NavLink>
         ))}
       </div>
@@ -287,21 +426,39 @@ function WorkspaceSheet({ open, onOpenChange }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Workspaces">
       <div className="-mx-1 space-y-0.5">
-        {(projects || []).filter((p) => !p.archived).map((p) => (
-          <button key={p.id} onClick={() => go(`/w/${p.id}`)} className="flex w-full items-center gap-3 rounded-md px-2 py-2.5 text-left hover:bg-hover">
+        {(projects || []).filter((p) => p.status === "active" || p.id === project?.id).map((p) => (
+          <button key={p.id} onClick={() => go(`/w/${p.id}`)} className="flex min-h-[48px] w-full items-center gap-3 rounded-md px-2 text-left hover:bg-hover">
+            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-raised border border-line text-[11px] font-semibold">{p.initials || initialsOf(p.name)}</span>
             <span className="flex-1 min-w-0">
               <span className="block truncate text-body-m text-fg">{p.name}</span>
+              <span className="block truncate text-body-s text-fg-tertiary">{p.attention ? `${p.attention} need${p.attention === 1 ? "s" : ""} attention` : p.client_name}</span>
             </span>
             {p.id === project?.id && <Check size={16} />}
           </button>
         ))}
+        <button onClick={() => go("/connect?new=1")} className="flex h-12 w-full items-center gap-3 rounded-md px-2 text-body-m text-fg-secondary hover:bg-hover hover:text-fg">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line"><Plus size={16} /></span> New workspace
+        </button>
       </div>
       <div className="my-3 h-px bg-line-subtle" />
+      <p className="eyebrow px-1 pb-1">This workspace</p>
       {[
-        { label: "Sources & files", to: `/w/${projectId}/sources`, icon: Folder },
-        { label: "Settings", to: "/settings", icon: SettingsIcon },
-        { label: "Notifications", to: "/settings/notifications", icon: Bell },
-        { label: "New workspace", to: "/connect?new=1", icon: Plus },
+        { label: "Sources", to: `/w/${projectId}/sources`, icon: Plug },
+        { label: "Files", to: `/w/${projectId}/files`, icon: Folder },
+        { label: "Members", to: `/w/${projectId}/settings/members`, icon: Users },
+        { label: "Workspace settings", to: `/w/${projectId}/settings/workspace`, icon: SettingsIcon },
+      ].map((r) => (
+        <button key={r.label} onClick={() => go(r.to)} className="flex h-12 w-full items-center gap-3 rounded-md px-2 text-body-m text-fg-secondary hover:bg-hover hover:text-fg">
+          <r.icon size={18} strokeWidth={1.75} /> {r.label}
+        </button>
+      ))}
+      <div className="my-3 h-px bg-line-subtle" />
+      <p className="eyebrow px-1 pb-1">Account</p>
+      {[
+        { label: "Profile", to: `/w/${projectId}/settings/profile`, icon: User },
+        { label: "Notifications", to: `/w/${projectId}/settings/notifications`, icon: Bell },
+        { label: "Billing", to: `/w/${projectId}/settings/billing`, icon: CreditCard },
+        { label: "Privacy & data", to: `/w/${projectId}/settings/privacy`, icon: ShieldCheck },
       ].map((r) => (
         <button key={r.label} onClick={() => go(r.to)} className="flex h-12 w-full items-center gap-3 rounded-md px-2 text-body-m text-fg-secondary hover:bg-hover hover:text-fg">
           <r.icon size={18} strokeWidth={1.75} /> {r.label}
@@ -323,21 +480,30 @@ function WorkspaceSheet({ open, onOpenChange }) {
 /* ───────────────────────── Shell ───────────────────────── */
 export default function AppShell({ children }) {
   const mobile = useIsMobile();
-  const rail = useIsRail();
-  const [navHidden, setNavHidden] = useState(() => {
-    try { return localStorage.getItem("bk.nav.hidden") === "1"; } catch { return false; }
+  const wide = useMedia("(min-width: 1280px)");
+  const desktop = useMedia("(min-width: 1024px)");
+  const xl = useMedia("(min-width: 1440px)");
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("bk.nav.collapsed") === "1"; } catch { return false; }
   });
-  const [drawer, setDrawer] = useState(false); // tablet nav drawer
+  const [drawer, setDrawer] = useState(false);
   const [sheet, setSheet] = useState(false);
   const location = useLocation();
   useEffect(() => { setDrawer(false); }, [location.pathname]);
-  const tablet = useIsCompact() && !mobile;
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); toggle(); }
+      if (e.key === "Escape") setDrawer(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   const toggle = () => {
-    if (tablet) { setDrawer((d) => !d); return; }
-    setNavHidden((h) => {
-      try { localStorage.setItem("bk.nav.hidden", h ? "0" : "1"); } catch { /* ignore */ }
-      return !h;
+    if (!wide) { setDrawer((d) => !d); return; }
+    setCollapsed((c) => {
+      try { localStorage.setItem("bk.nav.collapsed", c ? "0" : "1"); } catch { /* storage unavailable */ }
+      return !c;
     });
   };
 
@@ -346,28 +512,39 @@ export default function AppShell({ children }) {
       <div className="bk flex h-[100dvh] flex-col bg-app">
         <DemoBar />
         <MobileHeader onOpenSheet={() => setSheet(true)} />
-        <main className="scroll-pane flex-1 min-h-0">{children}</main>
+        <WorkspaceBanner />
+        <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
         <TabBar />
         <WorkspaceSheet open={sheet} onOpenChange={setSheet} />
       </div>
     );
   }
+
+  const rail = desktop && (!wide || collapsed);
+  const fullWidth = xl ? 260 : 232;
   return (
     <div className="bk flex h-[100dvh] flex-col bg-app">
       <DemoBar />
       <div className="flex flex-1 min-h-0">
-        {!tablet && !navHidden && <Sidebar rail={rail} />}
-        {tablet && drawer && (
-          <div className="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Navigation">
-            <div className="animate-slide-in-right [animation-direction:reverse] shadow-overlay"><Sidebar onNavigate={(e) => { if (e.target.closest("a")) setDrawer(false); }} /></div>
-            <button className="flex-1 bg-overlay" aria-label="Close navigation" onClick={() => setDrawer(false)} />
-          </div>
-        )}
+        {desktop && <Sidebar rail={rail} width={rail ? 64 : fullWidth} />}
+        <AnimatePresence>
+          {drawer && (
+            <motion.div className="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Navigation" initial="closed" animate="open" exit="closed">
+              <motion.div variants={{ open: { x: 0 }, closed: { x: "-100%" } }} transition={T.base} className="h-full shadow-overlay">
+                <Sidebar width={fullWidth} onNavigate={(e) => { if (e.target.closest("a")) setDrawer(false); }} />
+              </motion.div>
+              <motion.button variants={{ open: { opacity: 1 }, closed: { opacity: 0 } }} transition={T.base} className="flex-1 bg-overlay" aria-label="Close navigation" onClick={() => setDrawer(false)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar onToggleNav={toggle} navHidden={tablet ? !drawer : navHidden} compact={tablet} />
+          <TopBar onToggleNav={toggle} compact={!desktop} navLabel={!wide ? (drawer ? "Close navigation" : "Open navigation") : collapsed ? "Expand sidebar" : "Collapse sidebar"} />
+          <WorkspaceBanner />
           <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
         </div>
       </div>
     </div>
   );
 }
+
+export { sinceShort, ago };
