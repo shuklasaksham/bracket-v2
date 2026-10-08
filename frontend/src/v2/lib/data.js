@@ -14,15 +14,17 @@ export function useResource(fetcher, deps = [], { enabled = true } = {}) {
   const [state, setState] = useState({ data: null, error: null, loading: enabled });
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const seq = useRef(0); // latest request wins — a slow earlier response never overwrites a newer one
   const run = useCallback(async () => {
     if (!enabled) return null;
+    const mine = ++seq.current;
     setState((s) => ({ ...s, loading: true }));
     try {
       const data = await fetcher();
-      if (alive.current) setState({ data, error: null, loading: false });
+      if (alive.current && mine === seq.current) setState({ data, error: null, loading: false });
       return data;
     } catch (e) {
-      if (alive.current) setState((s) => ({ ...s, error: e, loading: false }));
+      if (alive.current && mine === seq.current) setState((s) => ({ ...s, error: e, loading: false }));
       return null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

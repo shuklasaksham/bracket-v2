@@ -11,7 +11,7 @@ import { v2 } from "../../lib/api2";
 import { shortTime, useResource } from "../../lib/data";
 import { useIsMobile, useMedia } from "../../lib/useMedia";
 import { Avatar, Badge, Button, Confidence, IconButton, Input, Skeleton, SourceMark } from "../../ui/primitives";
-import { Dialog, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/overlays";
+import { Dialog, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Sheet } from "../../ui/overlays";
 import { Chip, Tabs } from "../../ui/patterns";
 import { AnimatePresence, Stagger, StaggerItem, motion, t as T, useDelayed } from "../../ui/motion";
 import { MobileSubHeader } from "../../shell/AppShell";
@@ -41,6 +41,7 @@ export default function Memory() {
   const personId = params.get("person");
   const evidenceId = params.get("evidence");
   const q = params.get("q") || "";
+  const finding = params.has("find");
   const [tab, setTab] = useState("current");
   const [suggestOpen, setSuggestOpen] = useState(false);
   useEffect(() => setTab("current"), [category]);
@@ -67,7 +68,7 @@ export default function Memory() {
   const panelOpen = !!(itemId || personId);
 
   // Mobile opens on Commitments (Figma › Memory — Mobile 390).
-  if (mobile && !category && !q && !itemId && !personId) return <Navigate to={`${base}/memory/commitment`} replace />;
+  if (mobile && !category && !q && !finding && !itemId && !personId) return <Navigate to={`${base}/memory/commitment`} replace />;
 
   /* mobile: detail is a pushed screen */
   if (mobile && panelOpen) {
@@ -96,7 +97,7 @@ export default function Memory() {
     <div className="scroll-pane h-full min-w-0 flex-1">
       <div className={cn("px-4 pt-4 pb-10 md:px-8 md:pt-6", mobile && "pt-3")}>
         {mobile ? (
-          <MobileCategoryStrip base={base} categories={categories} active={category} counts={counts} title={title} count={count} isPeople={isPeople} q={q} onSearch={(v) => setParam("q", v)} />
+          <MobileCategoryStrip base={base} categories={categories} active={category} total={counts.memory} title={title} isPeople={isPeople} q={q} finding={finding || !!q} onSearch={(v) => setParam("q", v)} onFind={() => { const n = new URLSearchParams(params); n.set("find", "1"); setParams(n); }} />
         ) : (
           <div className="flex flex-wrap items-start justify-between gap-3 sm:flex-nowrap">
             <div className="min-w-0 flex-1">
@@ -113,7 +114,7 @@ export default function Memory() {
           {!list.data ? <ListSkeleton /> : isPeople && !q ? (
             <PeopleList people={items} selected={personId} onOpen={open} />
           ) : (
-            <MemoryList items={items} view={q ? "search" : view} category={category} tab={tab} selected={itemId} onOpen={open} base={base} q={q} />
+            <MemoryList items={items} view={q || (mobile && finding) ? "search" : view} category={category} tab={tab} selected={itemId} onOpen={open} base={base} q={q} />
           )}
         </div>
       </div>
@@ -229,35 +230,43 @@ function SuggestCategory({ open, onOpenChange, wid }) {
 }
 
 /* ───────────────────────── Mobile strip ───────────────────────── */
-function MobileCategoryStrip({ base, categories, active, title, count, isPeople, q, onSearch }) {
-  const [searching, setSearching] = useState(!!q);
+function MobileCategoryStrip({ base, categories, active, title, total, isPeople, q, finding, onSearch, onFind }) {
+  if (finding) {
+    // Figma › Memory · Search results — Mobile 390 (144:1001)
+    return (
+      <div>
+        <Link to={`${base}/memory`} className="flex h-8 items-center gap-2 text-[12px] text-fg-secondary"><ArrowLeft size={14} /> Memory</Link>
+        <label className="mt-3 block text-body-s text-fg-secondary" htmlFor="mem-find">Search memory</label>
+        <FilterBox id="mem-find" value={q} autoFocus placeholder="Scope, decisions, people…" onChange={onSearch} className="mt-2 h-11 border-fg/80" />
+      </div>
+    );
+  }
   if (active && (isPeople || ["needs-review", "recent"].includes(active))) {
+    const sub = isPeople ? "Everyone involved in this work, their role and what they’ve said." : active === "recent" ? "Last 7 days · every change is in the timeline" : null;
     return (
       <div>
         <Link to={`${base}/memory`} className="flex h-8 items-center gap-2 text-[12px] text-fg-secondary"><ArrowLeft size={14} /> Memory</Link>
         <h1 className="mt-2 text-title-m text-fg">{isPeople ? "People" : title}</h1>
-        {isPeople && <p className="mt-1 text-[12px] text-fg-tertiary">Everyone involved in this work, their role and what they’ve said.</p>}
+        {sub && <p className="mt-1 text-[12px] text-fg-tertiary">{sub}</p>}
       </div>
     );
   }
+  // Commitments and People first — what people open most on a phone.
+  const order = ["commitment", "person"];
+  const cats = [...(categories || [])].sort((x, y) => (order.indexOf(x.key) + 1 || 9) - (order.indexOf(y.key) + 1 || 9));
   return (
     <div>
       <div className="flex h-11 items-center gap-2">
-        {searching ? (
-          <FilterBox value={q} autoFocus placeholder="Search memory" onChange={onSearch} className="flex-1" onBlur={() => !q && setSearching(false)} />
-        ) : (
-          <>
-            <h1 className="flex flex-1 items-baseline gap-2 text-title-m text-fg">Memory <span className="font-mono text-[12px] font-normal text-fg-tertiary">{count}</span></h1>
-            <IconButton icon={Search} label="Search memory" size="l" onClick={() => setSearching(true)} />
-          </>
-        )}
+        <h1 className="flex flex-1 items-baseline gap-2 text-title-m text-fg">Memory <span className="font-mono text-[12px] font-normal text-fg-tertiary">{total}</span></h1>
+        <IconButton icon={Search} label="Search memory" size="l" onClick={onFind} />
       </div>
       <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-        {(categories || []).map((c) => {
-          const on = c.key === active || (!active && c.key === "commitment");
+        {cats.map((c) => {
+          const on = c.key === active;
           return (
-            <Link key={c.key} to={`${base}/memory/${c.key}`} className={cn("flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[12px] font-medium transition-colors duration-fast", on ? "border-fg bg-fg text-app" : "border-line text-fg-secondary")}>
-              {c.pending > 0 && !on && <span className="h-1.5 w-1.5 rounded-full bg-warning" />}{c.label} {c.count}
+            <Link key={c.key} to={`${base}/memory/${c.key}`} className={cn("relative flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[12px] font-medium transition-colors duration-fast", on ? "border-fg text-app" : "border-line-control text-fg-secondary")}>
+              {on && <motion.span layoutId="mem-chip" className="absolute inset-0 rounded-[7px] bg-fg" transition={T.base} />}
+              <span className="relative flex items-center gap-1.5">{c.pending > 0 && !on && <span className="h-1.5 w-1.5 rounded-full bg-warning" />}{c.label} {c.count}</span>
             </Link>
           );
         })}
@@ -266,7 +275,7 @@ function MobileCategoryStrip({ base, categories, active, title, count, isPeople,
   );
 }
 
-function FilterBox({ value, onChange, placeholder, autoFocus, className, onBlur }) {
+function FilterBox({ value, onChange, placeholder, autoFocus, className, onBlur, id }) {
   const [v, setV] = useState(value || "");
   useEffect(() => setV(value || ""), [value]);
   useEffect(() => {
@@ -276,7 +285,7 @@ function FilterBox({ value, onChange, placeholder, autoFocus, className, onBlur 
   return (
     <label className={cn("mt-[17px] flex h-8 w-full shrink-0 items-center gap-2 rounded-md border px-3 transition-colors duration-fast sm:w-[200px]", v ? "border-fg/80" : "border-line", className)}>
       <Search size={16} className="text-fg-tertiary" />
-      <input value={v} autoFocus={autoFocus} onBlur={onBlur} onChange={(e) => setV(e.target.value)} placeholder={placeholder} aria-label={placeholder}
+      <input id={id} value={v} autoFocus={autoFocus} onBlur={onBlur} onChange={(e) => setV(e.target.value)} placeholder={placeholder} aria-label={placeholder}
         className="min-w-0 flex-1 bg-transparent text-[12px] text-fg placeholder:text-fg-tertiary outline-none" />
       {v && <button aria-label="Clear" onClick={() => { setV(""); onChange(""); }} className="text-fg-tertiary hover:text-fg"><X size={14} /></button>}
     </label>
@@ -332,6 +341,7 @@ function MemoryList({ items, view, category, tab, selected, onOpen, base, q }) {
   const mobile = useIsMobile();
   const ask = useAskPanel();
   const navigate = useNavigate();
+  if (mobile && (view || q || items.length)) return <MobileMemoryList items={items} view={view} onOpen={onOpen} base={base} q={q} />;
   if (!items.length) {
     if (q) return <EmptyBox icon={Search} title={`No memories match “${q}”`} body="Try Ask Bracket — it also searches conversations and notes that haven’t become memory." action={<Button size="s" icon={MessageCircleQuestion} onClick={() => ask.open(q)}>Ask Bracket</Button>} />;
     if (view === "needs_review") return <EmptyBox icon={Layers} title="Nothing waiting for review" body="Proposed changes show up here when a source changes something Bracket remembers." />;
@@ -400,6 +410,178 @@ function MemoryList({ items, view, category, tab, selected, onOpen, base, q }) {
   return box(items, "flat");
 }
 
+/* ───────────────────────── Mobile 390 lists — Figma 42:4331, 144:449, 144:613, 144:1001 ───────────────────────── */
+const catName = (c) => (SINGULAR[c] === "Person" ? "People" : SINGULAR[c] ? SINGULAR[c] + (c === "scope" ? "" : "s") : c);
+function mobileMeta(m) {
+  if (m.category === "commitment") return m.due ? `Due ${fmt(m.due)}` : m.promised_at ? `Promised ${fmt(m.promised_at)}` : m.direction === "Agreed at kickoff" ? "Agreed at kickoff" : "No date";
+  const ev = (m.evidence || [])[0];
+  return ev ? `${ev.author} · ${fmt(ev.at)}` : "";
+}
+function MobileMemoryRows({ items, onOpen }) {
+  return (
+    <Stagger as="ul" className="-mx-4 border-t border-line-subtle">
+      {items.map((m) => {
+        const st = itemStatus(m);
+        const ev = (m.evidence || [])[0];
+        return (
+          <StaggerItem as="li" key={m.id} className="border-b border-line-subtle">
+            <button onClick={() => onOpen(m.current_id || m.id, m)} className="block w-full px-4 py-4 text-left transition-colors duration-fast active:bg-hover">
+              <span className={cn("block text-body-m", m.status === "superseded" ? "text-fg-tertiary line-through" : "text-fg")}>{m.title}</span>
+              <span className="mt-2 flex items-center gap-2 text-body-s text-fg-tertiary">
+                {ev && <SourceMark provider={ev.provider === "notes" ? "notes" : ev.provider} size={14} />}
+                <span className="min-w-0 flex-1 truncate">{mobileMeta(m)}</span>
+                {st && <Badge tone={st.tone} dot>{st.label.replace(/^Due in /, "In ")}</Badge>}
+              </span>
+            </button>
+          </StaggerItem>
+        );
+      })}
+    </Stagger>
+  );
+}
+function MobileBox({ rows }) {
+  return (
+    <Stagger as="ul" className="overflow-hidden rounded-lg border border-line divide-y divide-line-subtle">
+      {rows.map((r) => (
+        <StaggerItem as="li" key={r.key}>
+          <button onClick={r.onClick} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-fast active:bg-hover">
+            <span className="min-w-0 flex-1">
+              <span className="block text-body-m text-fg">{r.title}</span>
+              {r.meta && <span className="mt-0.5 block text-body-s text-fg-tertiary">{r.meta}</span>}
+            </span>
+            {r.badge && <Badge tone={r.badge.tone} dot={r.dot}>{r.badge.label}</Badge>}
+            <ChevronRight size={16} className="shrink-0 text-fg-tertiary" />
+          </button>
+        </StaggerItem>
+      ))}
+    </Stagger>
+  );
+}
+function MobileMemoryList({ items, view, onOpen, base, q }) {
+  const navigate = useNavigate();
+  const ask = useAskPanel();
+  if (view === "needs_review") {
+    const groups = {};
+    items.forEach((m) => { (groups[m.review_id] = groups[m.review_id] || []).push(m); });
+    if (!items.length) return <EmptyBox icon={Layers} title="Nothing waiting for review" body="Proposed changes show up here when a source changes something Bracket remembers." />;
+    return (
+      <div className="space-y-6">
+        {Object.entries(groups).map(([rid, list]) => {
+          const ev = list[0].evidence[0];
+          return (
+            <section key={rid}>
+              <p className="mb-3 text-body-s text-fg-tertiary">{list.length} proposed update{list.length === 1 ? "" : "s"} from {ev.author.split(" ")[0]}’s {ev.provider === "gmail" ? "email" : "message"} · {shortTime(list[0].created_at)}</p>
+              <MobileBox rows={list.map((m) => ({ key: m.id, title: m.title, meta: `${catName(m.category)} · ${m.op === "conflict" ? "Conflicts with what’s agreed" : m.confidence === "low" ? "Low confidence" : m.before ? "Replaces what’s remembered" : "New"}`, badge: OP[m.op] ? { tone: OP[m.op][1], label: OP[m.op][0] } : null, onClick: () => navigate(`${base}/review/${rid}`) }))} />
+              <Button variant="primary" className="mt-4 h-11 w-full" onClick={() => navigate(`${base}/review/${rid}`)}>Review {list.length} change{list.length === 1 ? "" : "s"}</Button>
+            </section>
+          );
+        })}
+      </div>
+    );
+  }
+  if (view === "recent") {
+    return <MobileBox rows={items.map((m) => ({ key: m.id, title: m.title, meta: `${catName(m.category)} · ${m.versions?.length ? "Accepted by Maya" : "Added"} · ${fmt(m.changed_at)}`, onClick: () => onOpen(m.id, m) }))} />;
+  }
+  if (view === "search") {
+    if (!q) return <p className="text-body-s text-fg-tertiary">Search scope, decisions, commitments, people and pending changes.</p>;
+    return (
+      <>
+        <p className="mb-3 text-body-s text-fg-tertiary">{items.length} result{items.length === 1 ? "" : "s"} for “{q}”</p>
+        {items.length ? (
+          <MobileBox rows={items.map((m) => ({ key: m.id, title: m.title, meta: m.status === "pending" ? `Pending · from ${m.evidence[0].author.split(" ")[0]}’s ${m.evidence[0].provider === "gmail" ? "email" : "message"} ${shortTime(m.created_at).toLowerCase()}` : `${catName(m.category)} · ${mobileMeta(m)}`, onClick: () => onOpen(m.current_id || m.review_id || m.id, m) }))} />
+        ) : (
+          <EmptyBox icon={Search} title={`No memories match “${q}”`} body="Try Ask Bracket — it also searches conversations and notes that haven’t become memory." action={<Button size="s" icon={MessageCircleQuestion} onClick={() => ask.open(q)}>Ask Bracket</Button>} />
+        )}
+      </>
+    );
+  }
+  if (!items.length) return null;
+  return <MobileMemoryRows items={items.filter((m) => m.state !== "completed")} onOpen={onOpen} />;
+}
+
+/* Figma › Memory · Edit commitment — Mobile 390 (144:1140) */
+function EditSheet({ open, onOpenChange, m, wid, onSaved }) {
+  const [title, setTitle] = useState("");
+  const [owner, setOwner] = useState("");
+  const [due, setDue] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open && m) { setTitle(m.title); setOwner(m.owner || ""); setDue(m.due ? m.due.slice(0, 10) : ""); } }, [open, m]);
+  if (!m) return null;
+  const commitment = m.category === "commitment";
+  const save = async () => {
+    setBusy(true);
+    try {
+      const body = { title: title.trim() };
+      if (commitment) Object.assign(body, { owner, due: due ? new Date(`${due}T09:00:00`).toISOString() : null });
+      const n = await v2.editMemory(wid, m.id, body);
+      toast.success("Saved", { description: "Logged in the timeline with you as the source." });
+      onSaved(n);
+    } catch (e) { toast.error(e?.response?.data?.detail || "Couldn’t save"); } finally { setBusy(false); }
+  };
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title={`Edit ${(SINGULAR[m.category] || "memory").toLowerCase()}`}
+      description="Edits are saved to memory and logged in the timeline with you as the source."
+      footer={<><Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button><Button variant="primary" onClick={save} loading={busy} disabled={!title.trim()}>Save changes</Button></>}>
+      <div className="space-y-4">
+        <label className="block text-body-s font-medium text-fg-secondary">What<Input className="mt-2 h-11" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+        {commitment && <label className="block text-body-s font-medium text-fg-secondary">Owner<Input className="mt-2 h-11" value={owner} onChange={(e) => setOwner(e.target.value)} /></label>}
+        {commitment && <label className="block text-body-s font-medium text-fg-secondary">Due<Input className="mt-2 h-11" type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>}
+      </div>
+    </Sheet>
+  );
+}
+
+/* Figma › Memory · Source evidence — Mobile 390 (144:1265) */
+function EvidenceSheet({ wid, ev, onOpenChange }) {
+  const { data: s } = useResource(() => (ev ? v2.evidence(wid, ev.id) : Promise.resolve(null)), [wid, ev?.id]);
+  const n = s?.memory_from?.length || 1;
+  const app = ev?.provider === "slack" ? "Slack" : ev?.provider === "gmail" ? "Gmail" : null;
+  return (
+    <Sheet open={!!ev} onOpenChange={onOpenChange} title={ev ? `Source · ${ev.author}${app ? `, ${app}` : ""}` : "Source"}
+      footer={<><Button variant="ghost" onClick={() => onOpenChange(false)}>Done</Button>{s?.link && app && <Button variant="secondary" onClick={() => window.open(s.link, "_blank", "noopener")}>Open in {app}</Button>}</>}>
+      {ev && (
+        <>
+          <p className="text-body-s text-fg-tertiary">{ev.where} · {fmt(ev.at, "MMM d, HH:mm")}</p>
+          <blockquote className="mt-4 rounded-md bg-surface px-4 py-3 text-body-l text-fg">“{ev.quote}”</blockquote>
+          <p className="mt-4 text-body-s text-fg-secondary">Bracket created {n} memor{n === 1 ? "y" : "ies"} from this {ev.provider === "notes" ? "note" : "sentence"}.</p>
+        </>
+      )}
+    </Sheet>
+  );
+}
+
+/* Figma › Memory · Person · Sarah Chen — Mobile 390 (144:912) */
+function MobilePerson({ p, base }) {
+  const navigate = useNavigate();
+  const ask = useAskPanel();
+  const first = p.name.split(" ")[0];
+  const approves = (p.approves || "").split(" · ")[0].replace(" (confirmed)", "").toLowerCase();
+  return (
+    <>
+      <div className="scroll-pane flex-1 min-h-0 px-4 pt-4 pb-6">
+        <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={T.base}>
+          <div className="flex items-start gap-3">
+            <Avatar name={p.name} size="l" />
+            <div className="min-w-0"><p className="text-title-m text-fg">{p.name}</p><p className="text-body-s text-fg-tertiary">{p.role} · {p.org.replace(" (you)", "")} · {p.email}</p></div>
+          </div>
+          <p className="eyebrow mt-6">Role in this work</p>
+          <p className="mt-2 text-body-m text-fg">{p.role_in_work}.{approves ? ` Approves ${approves}` : ""}{p.approves_confidence === "low" ? "; scope approval is unconfirmed." : approves ? "." : ""}</p>
+          {p.open?.length > 0 && (
+            <>
+              <p className="eyebrow mt-6 mb-3">Open with {first}</p>
+              <MobileBox rows={p.open.map((o, i) => ({ key: i, title: o.title || o.text, meta: o.meta || o.kind, badge: o.badge, dot: true, onClick: () => navigate(o.thread_id ? `${base}/conversations/${o.thread_id}` : `${base}/memory/commitment?item=${o.id}`) }))} />
+            </>
+          )}
+        </motion.div>
+      </div>
+      <div className="flex shrink-0 gap-3 border-t border-line-subtle px-4 pt-3 pb-3 safe-bottom">
+        <Button size="l" variant="secondary" className="flex-1" onClick={() => ask.open(`What do we know about ${p.name}?`)}>Ask about {first}</Button>
+        <Button size="l" variant="primary" className="flex-1" onClick={() => navigate(`${base}/conversations?new=1&to=${encodeURIComponent(p.email)}`)}>Email {first}</Button>
+      </div>
+    </>
+  );
+}
+
 function PeopleList({ people, selected, onOpen }) {
   const mobile = useIsMobile();
   if (!people.length) return <EmptyBox icon={Layers} title="No people yet" body="Bracket adds people as they show up in your sources." />;
@@ -456,6 +638,7 @@ function MemoryDetail({ wid, mid, onClose, onEvidence, canEdit, mobile, base, on
   const ask = useAskPanel();
   const [editing, setEditing] = useState(false);
   const [incorrect, setIncorrect] = useState(false);
+  const [sheetEv, setSheetEv] = useState(null);
   useEffect(() => { setEditing(false); }, [mid]);
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape" && !editing && !incorrect) onClose(); };
@@ -491,7 +674,7 @@ function MemoryDetail({ wid, mid, onClose, onEvidence, canEdit, mobile, base, on
         {!m ? <div className="space-y-3"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="mt-6 h-20 w-full rounded-lg" /></div> : (
           <motion.div key={m.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={T.base} className="space-y-6">
             <AnimatePresence mode="popLayout" initial={false}>
-              {editing ? (
+              {editing && !mobile ? (
                 <EditMemory key="edit" m={m} wid={wid} onCancel={() => setEditing(false)} onSaved={(n) => { setData(n); setEditing(false); refreshAll(); reload(); }} />
               ) : (
                 <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={T.fast} className="space-y-3">
@@ -507,7 +690,7 @@ function MemoryDetail({ wid, mid, onClose, onEvidence, canEdit, mobile, base, on
               <div className="mb-3 flex items-center"><p className="eyebrow flex-1">Evidence · {m.evidence.length}</p>{!mobile && <span className="text-[12px] font-medium text-fg-tertiary">Why Bracket believes this</span>}</div>
               <div className="space-y-3">
                 {m.evidence.map((e) => (
-                  <button key={e.id} onClick={() => onEvidence(e.id)} className="group block w-full rounded-md border border-line bg-surface p-3 text-left transition-colors duration-fast hover:border-line-strong">
+                  <button key={e.id} onClick={() => (mobile ? setSheetEv(e) : onEvidence(e.id))} className="group block w-full rounded-md border border-line bg-surface p-3 text-left transition-colors duration-fast hover:border-line-strong">
                     <span className="flex items-center gap-2">
                       <SourceMark provider={e.provider === "notes" ? "notes" : e.provider} size={16} />
                       <span className="text-[12px] font-medium text-fg">{e.author}</span>
@@ -575,6 +758,8 @@ function MemoryDetail({ wid, mid, onClose, onEvidence, canEdit, mobile, base, on
           <Button size="l" className="flex-1" icon={Pencil} onClick={() => setEditing(true)} disabled={!canEdit}>Edit</Button>
         </div>
       )}
+      {mobile && <EditSheet open={editing} onOpenChange={setEditing} m={m} wid={wid} onSaved={(n) => { setData(n); setEditing(false); refreshAll(); reload(); }} />}
+      {mobile && <EvidenceSheet wid={wid} ev={sheetEv} onOpenChange={(o) => !o && setSheetEv(null)} />}
       {m && <MarkIncorrect open={incorrect} onOpenChange={setIncorrect} m={m} wid={wid} onDone={() => { setIncorrect(false); refreshAll(); onClose(); }} />}
     </>
   );
@@ -742,7 +927,8 @@ function PersonDetail({ wid, pid, onClose, mobile, base }) {
         {!mobile && <IconButton icon={Pencil} label="Edit" />}
         <IconButton icon={MoreHorizontal} label="More" size={mobile ? "l" : "m"} />
       </PanelTop>
-      <div className={cn("scroll-pane flex-1 min-h-0 px-6 pb-6", mobile && "px-4 pt-4")}>
+      {mobile ? (p ? <MobilePerson p={p} base={base} /> : <div className="p-4"><Skeleton className="h-40 w-full rounded-lg" /></div>) : (
+      <div className="scroll-pane flex-1 min-h-0 px-6 pb-6">
         {!p ? <Skeleton className="h-40 w-full rounded-lg" /> : (
           <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={T.base} className="space-y-6">
             <div className="flex items-center gap-3">
@@ -785,6 +971,7 @@ function PersonDetail({ wid, pid, onClose, mobile, base }) {
           </motion.div>
         )}
       </div>
+      )}
     </>
   );
 }

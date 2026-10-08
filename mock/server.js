@@ -279,7 +279,7 @@ on("GET", "/api/v2/w/:wid/memory", ({ p, q }) => {
   else if (q.view === "recent") items = current().filter((m) => Date.now() - new Date(m.changed_at) < 3 * DAY).sort((a, b) => new Date(b.changed_at) - new Date(a.changed_at));
   else if (q.view === "changed") items = current().filter((m) => m.versions || Date.now() - new Date(m.changed_at) < 3 * DAY);
   else if (q.view === "superseded") items = S.memory.filter((m) => m.versions).flatMap((m) => m.versions.map((v, i) => ({ id: `${m.id}~${i}`, current_id: m.id, category: m.category, title: v.title, status: "superseded", superseded_at: v.superseded_at, evidence: m.evidence })));
-  else items = current();
+  else items = q.q ? [...current(), ...pend] : current(); // search also finds pending proposals (marked "Pending")
   if (q.category) items = items.filter((m) => m.category === q.category);
   if (q.q) { const s = q.q.toLowerCase(); items = items.filter((m) => (m.title + " " + (m.detail || "") + " " + (m.evidence || []).map((e) => e.quote + " " + e.author).join(" ")).toLowerCase().includes(s)); }
   return { items, total: items.length };
@@ -312,8 +312,17 @@ on("GET", "/api/v2/w/:wid/people/:pid", ({ p }) => {
   const pe = S.people.find((x) => x.id === p.pid); if (!pe) throw new HttpError(404, "Person not found");
   const first = pe.name.split(" ")[0];
   const open = [];
-  current().filter((m) => m.category === "commitment" && m.state === "open" && (m.owner === pe.name || m.owed_to === pe.name)).forEach((m) => open.push({ kind: "Commitment", text: m.owner === "Maya Rao" ? `You owe: ${(m.short || m.title).toLowerCase()}${m.due ? " by " + new Date(m.due).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}` : `${first} owes: ${(m.short || m.title).toLowerCase()}${m.waiting_days ? " · " + m.waiting_days + " days late" : ""}`, id: m.id }));
-  S.threads.filter((t) => t.needs_reply && t.who === pe.name).forEach((t) => open.push({ kind: "Conversation", text: `Waiting on you: reply about ${t.id === "t1" ? "tablet" : t.title.toLowerCase()}`, thread_id: t.id }));
+  current().filter((m) => m.category === "commitment" && m.state === "open" && (m.owner === pe.name || m.owed_to === pe.name)).forEach((m) => {
+    const days = m.due ? Math.ceil((new Date(m.due) - Date.now()) / DAY) : null;
+    const mine = m.owner === "Maya Rao";
+    const what = (m.short || m.title).replace(/ to Sarah$| from Acme$/, "").toLowerCase();
+    open.push({ kind: "Commitment", id: m.id,
+      title: mine ? `You owe ${what}${m.due ? " by " + new Date(m.due).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "") : ""}` : `${first} owes ${what}`,
+      meta: `Commitment · ${m.waiting_days ? m.waiting_days + " days late" : days != null ? "due in " + days + " day" + (days === 1 ? "" : "s") : "no date"}`,
+      badge: m.waiting_days ? { tone: "danger", label: "Late" } : days != null && days <= 7 ? { tone: "warning", label: "Due soon" } : null,
+      text: mine ? `You owe: ${(m.short || m.title).toLowerCase()}${m.due ? " by " + new Date(m.due).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}` : `${first} owes: ${(m.short || m.title).toLowerCase()}${m.waiting_days ? " · " + m.waiting_days + " days late" : ""}` });
+  });
+  S.threads.filter((t) => t.needs_reply && t.who === pe.name).forEach((t) => open.push({ kind: "Conversation", text: `Waiting on you: reply about ${t.id === "t1" ? "tablet" : t.title.toLowerCase()}`, title: `Waiting on your reply about ${t.id === "t1" ? "tablet" : t.title.toLowerCase()}`, meta: `Conversation · ${new Date(t.at).toDateString() === new Date().toDateString() ? "Today " + new Date(t.at).toTimeString().slice(0, 5) : new Date(t.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`, thread_id: t.id }));
   const recent = S.threads.filter((t) => t.who === pe.name || (t.participants || "").includes(pe.name)).slice(0, 3).map((t) => ({ id: t.id, provider: t.provider, title: t.title, at: t.at }));
   return { ...pe, open, recent };
 });
