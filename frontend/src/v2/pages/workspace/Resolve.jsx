@@ -9,6 +9,8 @@ import { useResource } from "../../lib/data";
 import { Button, IconButton, SourceMark, Skeleton, Input } from "../../ui/primitives";
 import { AnimatePresence, Stagger, StaggerItem, motion, t as T } from "../../ui/motion";
 import { cn } from "../../../lib/utils";
+import { useIsMobile } from "../../lib/useMedia";
+import { MobileSubHeader } from "../../shell/AppShell";
 
 /* Resolve conflict — two sources disagree; the person decides.
    Figma › ✓ Resolve conflict · Timeline (desktop) / Resolve conflict — Mobile 390. */
@@ -21,6 +23,7 @@ export default function Resolve() {
   const [choice, setChoice] = useState(null);
   const [dates, setDates] = useState({});
   const [busy, setBusy] = useState(false);
+  const mobile = useIsMobile();
 
   useEffect(() => {
     if (data && !choice) {
@@ -46,6 +49,59 @@ export default function Resolve() {
       setBusy(false);
     }
   };
+
+  /* Mobile — Figma › Resolve conflict — Mobile 390 (111:5597): compact push screen,
+     three choices, the commit action pinned to the bottom. */
+  if (mobile) {
+    const MOBILE_DETAIL = {
+      split: (o) => `Oct 17 desktop + mobile; tablet by ${dates[o.id] ? format(new Date(`${dates[o.id]}T09:00:00`), "MMM d") : "a later date"}`,
+      move: () => "All three on a new date",
+      ask: () => "Draft a reply with both options",
+    };
+    const options = (data?.options || []).filter((o) => MOBILE_DETAIL[o.id]);
+    return (
+      <div className="flex h-full flex-col">
+        <MobileSubHeader title="Resolve conflict" onBack={back} />
+        <div className="scroll-pane min-h-0 flex-1 px-4 py-4">
+          <p className="flex items-center gap-1.5 text-caption font-normal text-danger"><GitFork size={16} /> Conflicting information</p>
+          {data ? <h1 className="mt-2 text-title-s text-fg">{data.title}</h1> : <Skeleton className="mt-2 h-5 w-full" />}
+          {data && (
+            <>
+              <Stagger className="mt-4 space-y-4">
+                {data.sides.map((s, i) => (
+                  <StaggerItem key={i} className="rounded-lg border border-line bg-surface px-4 py-3">
+                    <p className="flex items-center gap-2 text-body-s text-fg-tertiary">
+                      {s.provider === "notes" ? <FileText size={14} className="text-fg-secondary" /> : <SourceMark provider={s.provider} size={14} />}
+                      {s.label.replace(" call notes", " notes")}{s.meta ? ` · ${s.meta.split(" · ")[0].replace(/^Today /, "")}` : ""}
+                    </p>
+                    <p className="mt-2 text-body-s text-fg-secondary">{s.quote}</p>
+                  </StaggerItem>
+                ))}
+              </Stagger>
+              <p className="eyebrow mt-6 mb-3">How do you want to resolve it?</p>
+              <div role="radiogroup" aria-label="Resolution" className="space-y-4">
+                {options.map((o) => {
+                  const on = choice === o.id;
+                  return (
+                    <button key={o.id} role="radio" aria-checked={on} onClick={() => setChoice(o.id)}
+                      className={cn("flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-fast", on ? "border-fg" : "border-line-control")}>
+                      <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border", on ? "border-fg" : "border-line-control")}>
+                        {on && <motion.span layoutId="resolve-dot" className="h-2 w-2 rounded-full bg-fg" transition={T.fast} />}
+                      </span>
+                      <span><span className="block text-body-m text-fg">{o.title}</span><span className="block text-body-s text-fg-tertiary">{MOBILE_DETAIL[o.id](o)}</span></span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="shrink-0 border-t border-line-subtle px-4 pt-3 pb-3 safe-bottom">
+          <Button size="l" variant="primary" className="w-full" loading={busy} disabled={!canEdit || !data} onClick={submit}>{choice === "ask" ? "Draft reply" : "Update memory & draft reply"}</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (

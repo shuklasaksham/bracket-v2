@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  Filter, ExternalLink, ChevronRight, Reply, RefreshCw, Send, Info, CheckCircle2, X, AlertTriangle, Lock, Copy, FileText, Pencil, Plus, ChevronDown, Link2,
+  Filter, ExternalLink, ChevronRight, Reply, RefreshCw, Send, Info, CheckCircle2, X, AlertTriangle, Lock, Copy, FileText, Pencil, Plus, ChevronDown, Link2, MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -10,7 +10,7 @@ import { v2 } from "../../lib/api2";
 import { shortTime, useResource } from "../../lib/data";
 import { useIsMobile, useMedia } from "../../lib/useMedia";
 import { Avatar, Badge, Button, IconButton, Input, Skeleton, SourceMark } from "../../ui/primitives";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/overlays";
+import { Menu, MenuContent, MenuItem, MenuTrigger, Sheet } from "../../ui/overlays";
 import { Chip } from "../../ui/patterns";
 import { AnimatePresence, Stagger, StaggerItem, motion, t as T, useDelayed } from "../../ui/motion";
 import { MobileSubHeader } from "../../shell/AppShell";
@@ -65,6 +65,7 @@ export default function Conversations() {
       <div className="px-4 pt-5 pb-3 md:px-4">
         <div className="flex items-center gap-2">
           <h1 className="text-title-m text-fg">Conversations</h1>
+          {mobile ? <><span className="flex-1" /><IconButton icon={Plus} label="New message" size="l" disabled={!canEdit} onClick={() => navigate(`${base}/conversations?new=1`)} /></> : <>
           <Button size="s" variant={composing ? "primary" : "secondary"} icon={Plus} disabled={!canEdit} onClick={() => navigate(`${base}/conversations?new=1`)}>New</Button>
           <span className="flex-1" />
           <Menu>
@@ -73,16 +74,16 @@ export default function Conversations() {
               {FILTERS.map(([k, l]) => <MenuItem key={k} checked={filter === k} onSelect={() => setFilter(k)}>{l}</MenuItem>)}
               <MenuItem checked={filter === "notes"} onSelect={() => setFilter("notes")}>Notes</MenuItem>
             </MenuContent>
-          </Menu>
+          </Menu></>}
         </div>
-        <div className="mt-3 flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
+        <div className={cn("mt-3 flex overflow-x-auto [scrollbar-width:none]", mobile ? "-mx-4 gap-2 px-4" : "gap-1.5")}>
           {FILTERS.map(([k, l]) => {
             const on = filter === k;
             const n = k === "all" ? c.all : k === "needs_reply" ? c.needs_reply : null;
             return (
-              <button key={k} onClick={() => setFilter(k)} className={cn("relative h-7 shrink-0 rounded-md border px-2.5 text-[12px] font-medium transition-colors duration-fast", on ? "border-transparent text-fg" : "border-line text-fg-secondary hover:text-fg")}>
-                {on && <motion.span layoutId="conv-filter" className="absolute inset-0 rounded-md bg-selected" transition={T.base} />}
-                <span className="relative">{l}{n != null && <span className="ml-1.5 font-mono text-fg-tertiary">{n}</span>}</span>
+              <button key={k} onClick={() => setFilter(k)} className={cn("relative shrink-0 border text-[12px] font-medium transition-colors duration-fast", mobile ? "h-9 rounded-lg px-3" : "h-7 rounded-md px-2.5", on ? (mobile ? "border-fg text-app" : "border-transparent text-fg") : (mobile ? "border-line-control text-fg-secondary" : "border-line text-fg-secondary hover:text-fg"))}>
+                {on && <motion.span layoutId="conv-filter" className={cn("absolute inset-0", mobile ? "rounded-[7px] bg-fg" : "rounded-md bg-selected")} transition={T.base} />}
+                <span className="relative">{l}{n != null && <span className={cn("ml-1.5", mobile ? "" : "font-mono text-fg-tertiary")}>{n}</span>}</span>
               </button>
             );
           })}
@@ -195,6 +196,10 @@ function ThreadView({ wid, tid, base, mobile, canEdit, params, setParams, wide }
   const metaLine = isNote ? `Meeting note · ${format(new Date(t.started_at), "MMM d")} · ${t.participants} · added by Maya` : `${t.participants} · ${t.count} message${t.count === 1 ? "" : "s"} · Started ${format(new Date(t.started_at), "MMM d")}`;
 
   const context = <ContextPanel t={t} base={base} navigate={navigate} />;
+  const discard = () => { setDraft(null); const n = new URLSearchParams(params); n.delete("draft"); setParams(n, { replace: true }); };
+  if (mobile) {
+    return <MobileThread t={t} base={base} canEdit={canEdit} draft={draft} setDraft={setDraft} drafting={drafting} makeDraft={makeDraft} send={send} sent={sent} failed={failed} onDiscard={discard} providerName={providerName} firstName={firstName} context={context} />;
+  }
   const body = (
     <div className="flex h-full min-w-0 flex-col">
       {mobile ? (
@@ -305,6 +310,161 @@ function ThreadView({ wid, tid, base, mobile, canEdit, params, setParams, wide }
       <div className="min-w-0 flex-1">{body}</div>
       <aside className={cn("scroll-pane h-full w-[300px] shrink-0 border-l border-line-subtle px-4 py-5", !wide && "hidden xl:block")} aria-label="This conversation and memory">{context}</aside>
     </div>
+  );
+}
+
+/* ───────────────────────── Mobile 390 thread — Figma 23:2726, 43:4966, 145:449…145:62661 ─────────────────────────
+   Push screen: meta line, messages full width, one status card, "Bracket learned", sticky actions.
+   Drafts open as a bottom sheet over the thread; a sent reply is confirmed inline. */
+function MobileThread({ t, base, canEdit, draft, setDraft, drafting, makeDraft, send, sent, failed, onDiscard, providerName, firstName, context }) {
+  const navigate = useNavigate();
+  const [contextOpen, setContextOpen] = useState(false);
+  const isNote = t.kind === "note";
+  const isSlack = t.provider === "slack";
+  const meta = isNote
+    ? `Note · added by Maya Rao · ${format(new Date(t.started_at), "MMM d")}`
+    : isSlack
+      ? `Slack · ${t.channel}${t.members ? ` · ${t.members} members` : ""} · ${dayTime(t.at).split(",")[0]}`
+      : `Gmail · ${t.participants} · ${t.count} message${t.count === 1 ? "" : "s"}`;
+  const pending = t.would_change.reduce((n, x) => n + (x.more || 1), 0);
+  const nothing = t.nothing_detected || (!t.would_change.length && !t.created.length && !t.referenced.length);
+  const openIn = () => window.open(t.provider === "gmail" ? "https://mail.google.com" : "https://slack.com", "_blank", "noopener");
+  const followUp = /follow/i.test(draft?.label || "");
+  const plain = draft ? draft.body.replace(/\[\[|\]\]/g, "") : "";
+  const via = draft?.via === "slack" ? "Slack" : providerName;
+
+  let footer = null;
+  if (sent) footer = null;
+  else if (isNote) footer = <Button size="l" variant="secondary" className="w-full" disabled={!canEdit} onClick={() => navigate(`${base}/sources/s_notes?note=${t.id}`)}>Edit note</Button>;
+  else if (nothing) footer = <Button size="l" variant="ghost" className="w-full" disabled={!canEdit} onClick={() => navigate(`${base}/memory?add=1&from=${t.id}`)}>Add to memory manually</Button>;
+  else if (isSlack) footer = <Button size="l" variant="secondary" className="w-full" onClick={openIn}>Open in Slack</Button>;
+  else if (t.review_id && pending) footer = (
+    <div className="flex gap-3">
+      <Button size="l" variant="secondary" className="flex-1" loading={drafting} disabled={!canEdit} onClick={() => makeDraft()}>Reply</Button>
+      <Button size="l" variant="primary" className="flex-1" disabled={!canEdit} onClick={() => navigate(`${base}/review/${t.review_id}`)}>Review update{pending === 1 ? "" : "s"}</Button>
+    </div>
+  );
+  else if (t.alert?.draft) footer = (
+    <div className="flex gap-3">
+      <Button size="l" variant="secondary" className="flex-1" loading={drafting} disabled={!canEdit} onClick={() => makeDraft()}>Reply</Button>
+      <Button size="l" variant="primary" className="flex-1" loading={drafting} disabled={!canEdit} onClick={() => makeDraft(t.alert.draft)}>Draft follow-up</Button>
+    </div>
+  );
+  else footer = <Button size="l" variant="primary" className="w-full" icon={Reply} loading={drafting} disabled={!canEdit} onClick={() => makeDraft()}>{t.needs_reply ? `Draft reply to ${firstName}` : "Draft a reply"}</Button>;
+
+  return (
+    <div className="flex h-full min-w-0 flex-col">
+      <MobileSubHeader title={isNote || !isSlack ? t.title : t.channel} onBack={() => navigate(`${base}/conversations`)}
+        actions={(
+          <Menu>
+            <MenuTrigger asChild><IconButton icon={MoreHorizontal} label="More" size="l" /></MenuTrigger>
+            <MenuContent align="end" className="w-[240px]">
+              <MenuItem icon={Info} onSelect={() => setContextOpen(true)}>This {isNote ? "note" : "conversation"} and memory</MenuItem>
+              {!isNote && <MenuItem icon={ExternalLink} onSelect={openIn}>Open in {providerName}</MenuItem>}
+              {!isNote && <MenuItem icon={Reply} disabled={!canEdit} onSelect={() => makeDraft()}>Draft a reply</MenuItem>}
+            </MenuContent>
+          </Menu>
+        )} />
+      <div className="scroll-pane min-h-0 flex-1 px-4 py-4">
+        <p className="flex items-center gap-2 text-body-s text-fg-tertiary">{isNote ? <FileText size={14} /> : <SourceMark provider={t.provider} size={14} />}<span className="truncate">{meta}</span></p>
+        {isNote ? <div className="mt-4"><NoteBody lines={t.note} /></div> : (
+          <Stagger className="mt-4 space-y-5" step={0.04}>
+            {t.messages.map((m) => (
+              <StaggerItem key={m.id}>
+                <p className="flex items-center gap-2 text-body-s font-medium text-fg"><Avatar name={m.author} size="s" />{m.author}<span className="font-normal text-fg-tertiary">{format(new Date(m.at), "HH:mm")}{m.sent_by_bracket ? " · via Bracket" : ""}</span></p>
+                <div className="mt-2 space-y-2">
+                  {m.body.map((b, i) => b.tag ? (
+                    <div key={i} className={cn("rounded-[2px] border-l-2 px-3 py-2", TAG_TONE[b.tone] || TAG_TONE.warning)}>
+                      <span className="block text-body-m text-fg">{b.text}</span>
+                      <span className="tag mt-1 block font-mono text-[12px] uppercase">{b.tag}{t.review_id && b.tone === "warning" && pending ? " · in review" : ""}</span>
+                    </div>
+                  ) : <p key={i} className="whitespace-pre-line text-body-m text-fg-secondary">{b.text}</p>)}
+                </div>
+              </StaggerItem>
+            ))}
+          </Stagger>
+        )}
+
+        <AnimatePresence initial={false}>
+          {sent ? (
+            <motion.div key="sent" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={T.base} role="status"
+              className="mt-5 flex items-center gap-3 rounded-lg border border-success/70 bg-success-bg px-4 py-3">
+              <CheckCircle2 size={16} className="shrink-0 text-success" />
+              <span className="text-body-s text-fg">Sent via {providerName}. Bracket will watch for {isSlack ? "replies" : `${firstName}’s answer`}.</span>
+            </motion.div>
+          ) : t.review_id && pending ? (
+            <StatusCard key="found" tone="info" title={`Bracket found ${pending} update${pending === 1 ? "" : "s"}`} body={`Would change ${t.would_change.filter((x) => !x.more).map((x) => x.category.toLowerCase()).join(" and ")}${pending > 2 ? ` and ${pending - 2} more` : ""}.`} />
+          ) : t.alert ? (
+            <StatusCard key="alert" tone={t.alert.tone} icon={AlertTriangle} title={t.alert.title} body={t.alert.body} />
+          ) : nothing ? (
+            <StatusCard key="nothing" tone="neutral" title="Nothing for memory" body="Bracket read this thread and found no scope, decisions or commitments. Nothing changed." />
+          ) : null}
+        </AnimatePresence>
+
+        {(isNote || isSlack) && t.created.length > 0 && !sent && (
+          <section className="mt-6">
+            <p className="eyebrow mb-3">Bracket learned · {t.created.length}</p>
+            <ul className="overflow-hidden rounded-lg border border-line divide-y divide-line-subtle">
+              {t.created.map((x, i) => (
+                <li key={i}>
+                  <button onClick={() => x.id && navigate(`${base}/memory?item=${x.id}`)} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-hover">
+                    <span className="min-w-0 flex-1"><span className="block text-body-m text-fg">{x.text}</span><span className="block text-body-s text-fg-tertiary">{x.category}{isNote ? "" : " · accepted"}</span></span>
+                    <ChevronRight size={16} className="text-fg-tertiary" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+      {footer && <div className="shrink-0 border-t border-line-subtle px-4 pt-3 pb-3 safe-bottom">{footer}</div>}
+
+      {/* Draft sheet — Figma 23:2726 (reply) · 145:62661 (follow-up) */}
+      <Sheet open={!!draft} onOpenChange={(o) => !o && onDiscard()} title={draft?.label || `Draft reply to ${firstName}`}
+        description={followUp ? "Written by Bracket · not sent" : undefined}
+        footer={(
+          <div className="flex gap-3">
+            {followUp ? <Button size="l" variant="ghost" className="flex-1" onClick={onDiscard}>Discard</Button>
+              : <Button size="l" variant="secondary" className="flex-1" icon={RefreshCw} loading={drafting} onClick={() => makeDraft("rewrite")}>Rewrite</Button>}
+            <Button size="l" variant="primary" className="flex-[2]" icon={followUp ? undefined : Send} disabled={!canEdit} onClick={send}>Send via {via}</Button>
+          </div>
+        )}>
+        {draft && (
+          <>
+            {!followUp && <span className="absolute right-4 top-6 text-body-s text-fg-tertiary">Not sent</span>}
+            {draft.based_on?.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-body-s text-fg-tertiary">Based on</span>
+                {draft.based_on.map((b, i) => <Chip key={i} provider={b.provider} label={b.label} />)}
+              </div>
+            )}
+            <textarea value={plain} onChange={(e) => setDraft({ ...draft, body: e.target.value })} rows={8} aria-label="Reply text"
+              className="mt-4 w-full resize-none rounded-lg border border-line-control bg-app px-3 py-3 text-body-m text-fg outline-none focus:border-fg" />
+            {draft.note && !followUp && <p className="mt-3 flex items-center gap-2 text-body-s text-fg-tertiary"><Info size={14} className="shrink-0" /> Proposed dates are suggestions. Edit before sending.</p>}
+            {failed && <p role="alert" className="mt-3 text-body-s text-danger">{failed}</p>}
+          </>
+        )}
+      </Sheet>
+
+      <AnimatePresence>
+        {contextOpen && (
+          <motion.div className="fixed inset-0 z-50 flex flex-col bg-app" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={T.sheet}>
+            <MobileSubHeader title={`This ${isNote ? "note" : "conversation"} and memory`} onBack={() => setContextOpen(false)} />
+            <div className="scroll-pane flex-1 px-4 py-4">{context}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function StatusCard({ tone, icon: Icon = Info, title, body }) {
+  const c = { info: "border-info/70 bg-info-bg text-info", warning: "border-warning/70 bg-warning-bg text-warning", neutral: "border-line-strong bg-surface text-fg-secondary" }[tone];
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={T.base} role="status" className={cn("mt-5 flex items-start gap-3 rounded-lg border px-4 py-3", c)}>
+      <Icon size={16} className="mt-0.5 shrink-0" />
+      <div className="min-w-0"><p className="text-body-m text-fg">{title}</p>{body && <p className="mt-0.5 text-body-s text-fg-secondary">{body}</p>}</div>
+    </motion.div>
   );
 }
 

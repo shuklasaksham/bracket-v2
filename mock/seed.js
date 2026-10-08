@@ -303,7 +303,7 @@ function build() {
       created: [{ category: "Decisions", text: "Homepage direction is editorial", id: "de1" }, { category: "Commitments", text: "Acme Finance will send brand assets", id: "co2" }],
       referenced: [{ category: "Scope", text: "Desktop and mobile are included", id: "sc1" }, { category: "People", text: "Sarah Chen — client lead", id: "pm_pe1" }],
       review_id: "r1", can_send: true },
-    { id: "C1", provider: "slack", kind: "slack", title: "Dev handoff — Webflow CMS structure", who: "#acme-redesign", channel: "#acme-redesign", participants: "Dev Patel, Sarah Chen, Maya Rao", count: 6, started_at: d(-1, "14:02"), at: d(-1, "14:31"),
+    { id: "C1", provider: "slack", kind: "slack", title: "Dev handoff — Webflow CMS structure", who: "#acme-redesign", channel: "#acme-redesign", members: 6, participants: "Dev Patel, Sarah Chen, Maya Rao", count: 6, started_at: d(-1, "14:02"), at: d(-1, "14:31"),
       preview: "Dev: confirmed we're building in Webflow, CMS for testimonials...", subtitle: "Dev handoff — Webflow CMS structure", badge: { tone: "info", label: "1 decision found" }, needs_reply: false, earlier: null,
       messages: [
         { id: "sm1", author: "Dev Patel", at: d(-1, "14:02"), body: [{ text: "Proposal for the CMS: one collection for testimonials, one for case studies. Homepage pulls the 3 latest testimonials." }, { text: "We’re building in Webflow, not Framer — confirmed with James.", tag: "Decision", tone: "info" }] },
@@ -313,7 +313,8 @@ function build() {
       would_change: [], created: [{ category: "Decisions", text: "Build in Webflow (not Framer)", id: "de4" }, { category: "Requirements", text: "Testimonials include company logo", id: "rq1" }], referenced: [{ category: "Requirements", text: "Add testimonials to the homepage", id: "rq1" }],
       draft_hint: "in thread", can_send: true },
     { id: "t4", provider: "gmail", kind: "email", title: "Brand assets", who: "Sarah Chen", participants: "Sarah Chen, Maya Rao", to_email: "sarah.chen@acmefinance.com", count: 3, started_at: d(-12, "11:00"), at: d(-8, "16:40"),
-      preview: "I'll pull the logo files and fonts together early next week.", badge: { tone: "neutral", label: "Awaiting assets" }, needs_reply: true, earlier: { count: 2, at: d(-1) },
+      preview: "I'll pull the logo files and fonts together early next week.", badge: { tone: "neutral", label: "Awaiting assets" }, needs_reply: true,
+      alert: { tone: "warning", title: "Brand assets are 8 days late", body: `Acme Finance said “early next week” on ${new Date(d(-8)).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. The Oct 17 launch depends on them.`, draft: "follow-up" }, earlier: { count: 2, at: d(-1) },
       messages: [
         { id: "bm2", author: "Sarah Chen", at: d(-8, "16:40"), body: [{ text: "I’ll pull the logo files and fonts together and send them early next week." }] },
       ],
@@ -330,7 +331,7 @@ function build() {
       ],
       messages: [],
       would_change: [], created: [{ category: "Decisions", text: "Build in Webflow with CMS", id: "de4" }, { category: "Requirements", text: "Performance and SEO are priorities", id: "rq2" }, { category: "Requirements", text: "Review schema on homepage", id: "rq3" }], referenced: [], can_send: false },
-    { id: "C1b", provider: "slack", kind: "slack", title: "Kickoff follow-ups", who: "#acme-redesign", channel: "#acme-redesign", participants: "Maya Rao, Sarah Chen", count: 6, started_at: d(-4, "16:00"), at: d(-4, "16:20"),
+    { id: "C1b", provider: "slack", kind: "slack", title: "Kickoff follow-ups", who: "#acme-redesign", channel: "#acme-redesign", members: 6, participants: "Maya Rao, Sarah Chen", count: 6, started_at: d(-4, "16:00"), at: d(-4, "16:20"),
       preview: "We'll have the mobile screens over to you by Friday.", subtitle: "Kickoff follow-ups", needs_reply: false, earlier: null,
       messages: [{ id: "km0", author: "Sarah Chen", at: d(-4, "16:12"), body: [{ text: "Can we see mobile before the review on Monday?" }] }, { id: "km1", author: "Maya Rao", at: d(-4, "16:20"), body: [{ text: "We’ll have the mobile screens over to you by Friday.", tag: "Commitment", tone: "warning" }] }],
       would_change: [], created: [{ category: "Commitments", text: "Mobile screens to Sarah by Fri", id: "co1" }], referenced: [], can_send: true },
