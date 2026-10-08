@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, NavLink, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, NavLink, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Plus, ChevronDown, Upload, Check, X, Lock, Info, AlertTriangle, Send, Link2, MoreHorizontal, FileText, Download, Clock,
 } from "lucide-react";
@@ -18,6 +18,7 @@ import { MobileSubHeader } from "../../shell/AppShell";
 import SettingsMobile from "./SettingsMobile";
 import { SourceStatus } from "../../features/sources";
 import { cn } from "../../../lib/utils";
+import { useSandbox } from "../../sandbox/sandbox";
 
 /* Settings — Figma › ✓ Settings · Profile / Notifications / Workspace / Members /
    Billing / Privacy & data and every dialog: Choose a plan (checkout), Billing
@@ -37,6 +38,7 @@ export default function Settings() {
   const mobile = useIsMobile();
   const navigate = useNavigate();
   const base = `/w/${projectId}/settings`;
+  const sandbox = useSandbox();
   const Body = { profile: Profile, notifications: Notifications, workspace: WorkspaceSection, members: Members, billing: Billing, sources: SourcesSection, privacy: Privacy }[section] || Profile;
   const title = (SECTIONS.find(([k]) => k === section) || SECTIONS[0])[1];
   const content = (
@@ -45,6 +47,8 @@ export default function Settings() {
       <Body />
     </motion.div>
   );
+  // Sandbox: plans live on the "What you pay for" page instead of billing.
+  if (sandbox.active && section === "billing") return <Navigate to={`/w/${projectId}/sandbox`} replace />;
   // Mobile 390 has its own pushed screens (Figma 03b › 07) — see SettingsMobile.
   if (mobile && rawSection !== "sources") return <SettingsMobile section={rawSection} />;
   if (mobile) {

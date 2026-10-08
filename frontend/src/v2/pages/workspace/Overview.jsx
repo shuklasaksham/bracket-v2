@@ -145,7 +145,7 @@ export default function Overview() {
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
           {/* Left column */}
           <div className="min-w-0 space-y-7">
-            <section aria-labelledby="attn">
+            <section aria-labelledby="attn" data-tour="attention">
               <SectionTitle id="attn" title={view === "later" ? "Snoozed & saved" : "Needs your attention"} count={view === "later" ? laterItems.length : data.attention.length}
                 action={view === "later" ? "← Back to needs you" : data.snoozed || data.saved ? [data.snoozed ? `Snoozed ${data.snoozed}` : null, data.saved ? `Saved for later ${data.saved}` : null].filter(Boolean).join(" · ") : "Only items that need a decision from you"}
                 actionIcon={view !== "later"}
@@ -265,7 +265,7 @@ function MobileOverview({ ws, data, act, canEdit, learning, base }) {
         {n === 0 && !learning ? (
           <div className="mt-3 px-4"><CaughtUp base={base} /></div>
         ) : (
-          <ul className="mt-3 border-t border-line-subtle">
+          <ul className="mt-3 border-t border-line-subtle" data-tour="attention">
             <AnimatePresence initial={false}>
               {data.attention.map((a, i) => {
                 const [Icon, color] = KIND_ICON[a.kind] || KIND_ICON.waiting;

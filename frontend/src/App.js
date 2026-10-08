@@ -34,6 +34,10 @@ import Files from "./v2/pages/workspace/Files";
 import WorkspaceSettings from "./v2/pages/workspace/Settings";
 import { SettingsRedirect } from "./v2/shell/Guards";
 import MockStates from "./v2/pages/MockStates";
+import { SandboxProvider } from "./v2/sandbox/sandbox";
+import SandboxEntry from "./v2/sandbox/SandboxEntry";
+import SandboxPlans from "./v2/sandbox/SandboxPlans";
+import { AdminRoutes } from "./v2/admin/AdminApp";
 
 import "./App.css";
 
@@ -85,6 +89,7 @@ export default function App() {
                       style: { background: "#15161a", border: "1px solid rgba(255,255,255,0.14)", color: "#f7f8f8", fontFamily: "Urbanist, system-ui, sans-serif" },
                     }}
                   />
+                  <SandboxProvider>
                   <Suspense fallback={<FullScreenLoader />}>
                     <Routes>
                       {/* Marketing — public */}
@@ -112,6 +117,7 @@ export default function App() {
                       <Route path="/reset-password" element={<ResetPassword />} />
                       <Route path="/invite/:token" element={<AcceptInvite />} />
                       <Route path="/__states" element={<MockStates />} />
+                      <Route path="/sandbox" element={<SandboxEntry />} />
                       <Route path="/onboarding" element={<RequireAuth><Onboarding /></RequireAuth>} />
                       <Route path="/claim" element={<RequireAuth><Claim /></RequireAuth>} />
                       <Route path="/plan" element={<Navigate to="/settings/billing" replace />} />
@@ -142,6 +148,7 @@ export default function App() {
                         <Route path="files/:fid" element={<Files />} />
                         <Route path="settings" element={<WorkspaceSettings />} />
                         <Route path="settings/:section" element={<WorkspaceSettings />} />
+                        <Route path="sandbox" element={<SandboxPlans />} />
                         <Route path="*" element={<WorkspaceNotFound />} />
                       </Route>
 
@@ -157,10 +164,14 @@ export default function App() {
                       <Route path="/project/:id/flow" element={<Legacy><ProjectFlow /></Legacy>} />
                       <Route path="/project/:id/document" element={<Legacy><ProjectDocument /></Legacy>} />
                       <Route path="/r/:token" element={<ClientReview />} />
-                      <Route path="/admin/login" element={<AdminLogin />} />
-                      <Route path="/admin" element={<DialogProvider><ProtectedAdminRoute><LegacyAppShell><AdminDashboard /></LegacyAppShell></ProtectedAdminRoute></DialogProvider>} />
+                      {/* v1.9 console (admin-email accounts) kept for parity */}
+                      <Route path="/admin/legacy/login" element={<AdminLogin />} />
+                      <Route path="/admin/legacy" element={<DialogProvider><ProtectedAdminRoute><LegacyAppShell><AdminDashboard /></LegacyAppShell></ProtectedAdminRoute></DialogProvider>} />
+                      {/* Owner-only admin panel — separate username/password session */}
+                      {AdminRoutes()}
                     </Routes>
                   </Suspense>
+                  </SandboxProvider>
                 </CommandProvider>
               </AskPanelProvider>
             </TooltipProvider>

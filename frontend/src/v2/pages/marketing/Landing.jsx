@@ -88,7 +88,8 @@ export default function Landing() {
                 <Button variant="secondary" className="h-11" onClick={() => document.getElementById("how")?.scrollIntoView({ behavior: "smooth" })}>See how it works</Button>
               </div>,
               <p key="n" className="mt-7 text-caption text-fg-tertiary">Free for 14 days · No card required · Set up in 5 minutes</p>,
-            ].map((el) => (
+              !user && <Link key="sb" to="/sandbox" className="mt-3 inline-flex items-center gap-1 text-body-s text-fg-secondary underline-offset-4 transition-colors hover:text-fg hover:underline">Or try a sample project first, no sign-up <ArrowRight size={14} /></Link>,
+            ].filter(Boolean).map((el) => (
               <motion.div key={el.key} className="flex w-full justify-center" variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } }}>{el}</motion.div>
             ))}
           </motion.div>
@@ -211,7 +212,10 @@ export default function Landing() {
         <Reveal className="flex flex-col items-center">
           <h2 className="text-[32px] font-semibold leading-[1.1] tracking-[-0.96px] md:text-[52px] md:tracking-[-1.56px]">Stop re-explaining your business.</h2>
           <p className="mt-6 max-w-[460px] text-body-l text-fg-secondary">Connect one source and see what Bracket remembers in five minutes.</p>
-          <Button variant="primary" className="mt-6 h-11" iconRight={ArrowRight} onClick={start}>{user ? "Open Bracket" : "Get started free"}</Button>
+          <div className="mt-6 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
+            <Button variant="primary" className="h-11" iconRight={ArrowRight} onClick={start}>{user ? "Open Bracket" : "Get started free"}</Button>
+            {!user && <Button variant="secondary" className="h-11" onClick={() => navigate("/sandbox")}>Try the sandbox</Button>}
+          </div>
         </Reveal>
       </section>
     </>

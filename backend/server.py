@@ -4854,6 +4854,12 @@ app.include_router(_connectors.router)
 import demo as _demo  # noqa: E402
 app.include_router(_demo.router)
 
+# --- v2: owner-only admin panel + no-sign-up sandbox ---
+import admin_v2 as _admin_v2  # noqa: E402
+import sandbox_v2 as _sandbox_v2  # noqa: E402
+_admin_v2.install(app)
+_sandbox_v2.install(app)
+
 
 @app.on_event("startup")
 async def _start_connector_poller():

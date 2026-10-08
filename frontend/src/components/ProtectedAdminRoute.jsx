@@ -20,7 +20,7 @@ export default function ProtectedAdminRoute({ children }) {
     );
   }
   if (!user || !user.is_admin) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to="/admin/legacy/login" replace />;
   }
   return children;
 }

@@ -99,7 +99,7 @@ export default function Ask() {
 
   /* ───── conversation ───── */
   const threadView = (
-    <div className={cn("space-y-10", mobile ? "px-4 pt-4" : "mx-auto max-w-[520px] px-6 pt-5")}>
+    <div data-tour="ask-answer" className={cn("space-y-10", mobile ? "px-4 pt-4" : "mx-auto max-w-[520px] px-6 pt-5")}>
       {thread.map((item) => (
         mobile ? <MobileTurn key={item.key} item={item} onNext={submit} base={base} wid={projectId} onRetry={retry} /> : (
           <AskTurn key={item.key} item={item} wid={projectId} base={base} onRetry={retry} onNext={submit}

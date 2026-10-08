@@ -34,7 +34,7 @@ export default function AdminLogin() {
       return;
     }
     await refresh();
-    navigate("/admin", { replace: true });
+    navigate("/admin/legacy", { replace: true });
   };
 
   const submitPw = async (e) => {

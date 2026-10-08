@@ -17,6 +17,7 @@ import NotificationsButton from "./Notifications";
 import { useCommand } from "./CommandPalette";
 import WorkspaceBanner from "./WorkspaceBanner";
 import DemoBar from "./DemoBar";
+import SandboxBar from "../sandbox/SandboxBar";
 import PlanLimit, { canCreateWorkspace } from "./PlanLimit";
 import { loadBilling } from "../lib/account";
 
@@ -132,7 +133,7 @@ function WorkspaceSwitcher({ variant = "bar" }) {
         )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[320px] p-0">
-        <SwitcherList currentId={project?.id} onPick={(p) => { setOpen(false); navigate(`/w/${p.id}`); }} onNew={async () => { setOpen(false); if (await canCreateWorkspace()) navigate("/connect?new=1"); else setLimit((await loadBilling()).workspaces); }} />
+        <SwitcherList currentId={project?.id} onPick={(p) => { setOpen(false); navigate(`/w/${p.id}`); }} onNew={async () => { setOpen(false); const ok = await canCreateWorkspace(); if (ok) navigate("/connect?new=1"); else if (ok === false) setLimit((await loadBilling()).workspaces); }} />
         <PlanLimit open={!!limit} onOpenChange={(o) => !o && setLimit(null)} used={limit?.used} limit={limit?.limit} wid={project?.id} />
       </PopoverContent>
     </Popover>
@@ -429,8 +430,9 @@ function WorkspaceSheet({ open, onOpenChange }) {
   const go = (to) => { onOpenChange(false); navigate(to); };
   const meta = (p) => [p.client_name, p.attention ? `${p.attention} need${p.attention === 1 ? "s" : ""} attention` : null].filter(Boolean).join(" · ");
   const newWorkspace = async () => {
-    if (await canCreateWorkspace()) go("/connect?new=1");
-    else { onOpenChange(false); setLimit((await loadBilling()).workspaces); }
+    const ok = await canCreateWorkspace();
+    if (ok) go("/connect?new=1");
+    else { onOpenChange(false); if (ok === false) setLimit((await loadBilling()).workspaces); }
   };
   return (
     <>
@@ -516,6 +518,7 @@ export default function AppShell({ children }) {
       <div className="bk flex h-[100dvh] flex-col bg-app">
         <DemoBar />
         {!push && <MobileHeader onOpenSheet={() => setSheet(true)} />}
+        {!push && <SandboxBar mobile />}
         {!push && <WorkspaceBanner />}
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
         {!push && <TabBar />}
@@ -542,6 +545,7 @@ export default function AppShell({ children }) {
           )}
         </AnimatePresence>
         <div className="flex min-w-0 flex-1 flex-col">
+          <SandboxBar />
           <TopBar onToggleNav={toggle} compact={!desktop} navLabel={!wide ? (drawer ? "Close navigation" : "Open navigation") : collapsed ? "Expand sidebar" : "Collapse sidebar"} />
           <WorkspaceBanner />
           <main className="flex-1 min-h-0 overflow-hidden">{children}</main>

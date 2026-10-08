@@ -42,12 +42,14 @@ export function CurrencyToggle({ value, onChange }) {
   );
 }
 
+export const defaultCurrency = () => {
+  try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; return tz.startsWith("Asia/Calcutta") || tz.startsWith("Asia/Kolkata") ? "inr" : "usd"; } catch { return "usd"; }
+};
+
 export function Pricing() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [currency, setCurrency] = useState(() => {
-    try { return (Intl.DateTimeFormat().resolvedOptions().timeZone || "").startsWith("Asia/Calcutta") || (Intl.DateTimeFormat().resolvedOptions().timeZone || "").startsWith("Asia/Kolkata") ? "inr" : "usd"; } catch { return "usd"; }
-  });
+  const [currency, setCurrency] = useState(defaultCurrency);
   const start = (plan) => navigate(user ? `/settings/billing?plan=${plan}` : `/signup?plan=${plan}`);
   return (
     <>

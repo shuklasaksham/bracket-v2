@@ -126,6 +126,16 @@ const on = (method, pattern, fn) => {
   routes.push({ method, rx, keys, fn });
 };
 
+/* admin panel (owner only) + sandbox — separate modules, see their headers */
+const admin = require("./admin").register({ on, HttpError });
+const sandbox = require("./sandbox").register({
+  on, HttpError,
+  state: () => S,
+  reset: () => applyScenario("default"),
+  setLoggedIn: (v) => { loggedIn = v; },
+  analytics: { sandbox: admin.sandbox },
+});
+
 /* mock control */
 on("GET", "/api/__mock/scenario", () => ({ current: scenario, scenarios: SCENARIOS }));
 on("POST", "/api/__mock/scenario", ({ body }) => { applyScenario(body.name || "default"); return { current: scenario }; });
@@ -819,20 +829,25 @@ http.createServer((req, res) => {
       let body = {};
       try { body = JSON.parse(raw || "{}"); } catch { body = {}; }
       const q = Object.fromEntries(url.searchParams);
-      if (sessionExpired && !url.pathname.startsWith("/api/__mock") && !url.pathname.startsWith("/api/auth/") && !url.pathname.startsWith("/api/public")) {
+      const cookies = Object.fromEntries((req.headers.cookie || "").split(";").map((c) => c.trim().split("=")).filter((c) => c[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join("="))]));
+      const own = /^\/api\/v2\/(admin|sandbox)(\/|$)/.test(url.pathname); // own auth rules
+      if (!own && sessionExpired && !url.pathname.startsWith("/api/__mock") && !url.pathname.startsWith("/api/auth/") && !url.pathname.startsWith("/api/public")) {
         return send(res, 401, { detail: "Your session expired. Sign in again to continue.", code: "session_expired" });
       }
-      if (!loggedIn && url.pathname.startsWith("/api/v2/") && !url.pathname.startsWith("/api/v2/auth") && !url.pathname.startsWith("/api/v2/invites") && !url.pathname.startsWith("/api/v2/contact")) {
+      if (!own && !loggedIn && url.pathname.startsWith("/api/v2/") && !url.pathname.startsWith("/api/v2/auth") && !url.pathname.startsWith("/api/v2/invites") && !url.pathname.startsWith("/api/v2/contact")) {
         return send(res, 401, { detail: "Not signed in" });
       }
+      const lock = sandbox.lockFor(req.method, url.pathname);
+      if (lock) return setTimeout(() => send(res, 403, { detail: lock.detail, code: "sandbox_locked", action: lock.action }), 120);
       for (const r of routes) {
         if (r.method !== req.method) continue;
         const m = url.pathname.match(r.rx);
         if (!m) continue;
         const p = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
         try {
-          const out = r.fn({ p, q, body });
+          const out = r.fn({ p, q, body, req, cookies });
           if (out && out.__redirect) { res.writeHead(302, { Location: out.__redirect }); return res.end(); }
+          if (out && out.__cookies) { res.setHeader("Set-Cookie", out.__cookies); delete out.__cookies; }
           const delay = /\/ask$|\/draft$|\/accept$/.test(url.pathname) ? 650 : 90;
           return setTimeout(() => send(res, 200, out), delay);
         } catch (e) {

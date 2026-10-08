@@ -10,6 +10,10 @@ import { loadBilling } from "../lib/account";
 export async function canCreateWorkspace() {
   try {
     const b = await loadBilling();
+    if (b?.status === "sandbox") { // the sandbox explains this itself
+      window.dispatchEvent(new CustomEvent("bk:sandbox-locked", { detail: { action: "workspace" } }));
+      return null;
+    }
     if (!b || b.status === "trialing" || b.status === "expired") return true;
     return !(b.workspaces && b.workspaces.used >= b.workspaces.limit);
   } catch { return true; }

@@ -22,12 +22,24 @@ export const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 // wall (100s) is well outside this window.
 const MAX_BACKPRESSURE_RETRIES = 2;
 
+// Sandbox: actions that need a real account answer 403 `sandbox_locked`. The
+// sandbox provider listens for this event and shows the "start a free trial"
+// prompt, so callers' own error toasts are silenced (see formatApiError).
+export const SANDBOX_LOCKED_MESSAGE = "That’s part of the free trial, not the sandbox.";
+
 api.interceptors.response.use(
   (r) => r,
   async (error) => {
     const cfg = error?.config;
     const status = error?.response?.status;
     const code = error?.response?.data?.code;
+    if (status === 403 && code === "sandbox_locked") {
+      error.sandboxLocked = true;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("bk:sandbox-locked", { detail: { action: error.response.data.action, detail: error.response.data.detail } }));
+      }
+      return Promise.reject(error);
+    }
     const retryAfterHdr = Number(error?.response?.headers?.["retry-after"]);
     // Only retry idempotent-ish flows (POST too — LLM outputs are not
     // strictly idempotent but re-running the same paste twice is safe
@@ -46,6 +58,7 @@ api.interceptors.response.use(
 );
 
 export function formatApiError(err) {
+  if (err?.sandboxLocked) return SANDBOX_LOCKED_MESSAGE;
   const detail = err?.response?.data?.detail;
   if (!detail) return err?.message || "Something went wrong.";
   if (typeof detail === "string") return detail;

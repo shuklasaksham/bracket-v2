@@ -248,7 +248,7 @@ export default function Review() {
             <span className="flex-1" />
             <span className="hidden items-center gap-2 text-[12px] font-medium text-fg-tertiary xl:flex"><Info size={16} /> Low-confidence items are unselected by default</span>
           </div>
-          <div className="mt-3 overflow-hidden rounded-lg border border-line">{proposals}</div>
+          <div className="mt-3 overflow-hidden rounded-lg border border-line" data-tour="proposals">{proposals}</div>
           <div className="mt-6 lg:hidden"><p className="eyebrow mb-3">What happened</p><SourceMessage trigger={r.trigger} /></div>
         </section>
       </div>

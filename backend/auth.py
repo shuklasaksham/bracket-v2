@@ -145,6 +145,8 @@ async def current_user_optional(request: Request, db) -> Optional[Dict[str, Any]
     )
     if not user:
         return None
+    if user.get("suspended"):  # suspended from the admin panel — signed out everywhere
+        return None
     return user
 
 
