@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Bell, AlertTriangle, CalendarClock, RefreshCw, CheckCircle2, SlidersHorizontal, GitPullRequestArrow, Info } from "lucide-react";
+import { Bell, ArrowLeft, MoreHorizontal, AlertTriangle, CalendarClock, RefreshCw, CheckCircle2, SlidersHorizontal, GitPullRequestArrow, Info } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { v2 } from "../lib/api2";
 import { shortTime } from "../lib/data";
 import { IconButton } from "../ui/primitives";
-import { Popover, PopoverTrigger, PopoverContent, Tooltip } from "../ui/overlays";
-import { Stagger, StaggerItem } from "../ui/motion";
+import { Popover, PopoverTrigger, PopoverContent, Tooltip, Menu, MenuTrigger, MenuContent, MenuItem } from "../ui/overlays";
+import { Stagger, StaggerItem, AnimatePresence, motion, t as T } from "../ui/motion";
+import { useIsMobile } from "../lib/useMedia";
 
 /* Updates — restrained feed: attention first, then memory changes, then system.
    Figma › Overview · Updates open. */
@@ -28,6 +30,7 @@ export default function NotificationsButton({ size = "m" }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState({ items: [], unread: 0 });
   const navigate = useNavigate();
+  const mobile = useIsMobile();
   const load = useCallback(() => v2.updates().then(setData).catch(() => {}), []);
   useEffect(() => {
     load();
@@ -55,28 +58,9 @@ export default function NotificationsButton({ size = "m" }) {
     if (to) navigate(to);
   };
 
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip content="Updates">
-        <PopoverTrigger asChild>
-          <IconButton
-            icon={Bell}
-            size={size}
-            label={data.unread ? `Updates, ${data.unread} unread` : "Updates"}
-          >
-            {data.unread > 0 && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-warning ring-2 ring-app" />}
-          </IconButton>
-        </PopoverTrigger>
-      </Tooltip>
-      <PopoverContent className="w-[min(400px,calc(100vw-24px))] p-0">
-        <div className="flex h-12 items-center justify-between border-b border-line-subtle pl-4 pr-2">
-          <p className="text-body-m font-medium text-fg">Updates</p>
-          <div className="flex items-center gap-1">
-            <button onClick={markAll} disabled={!data.unread} className="h-7 rounded-md px-2 text-body-s text-fg-secondary hover:bg-hover hover:text-fg disabled:opacity-40">Mark all read</button>
-            <IconButton icon={SlidersHorizontal} label="Notification settings" size="s" onClick={() => { setOpen(false); const w = data.items[0]?.link?.workspace || window.location.pathname.split("/")[2]; navigate(`/w/${w}/settings/notifications`); }} />
-          </div>
-        </div>
-        <div className="max-h-[440px] overflow-y-auto py-1">
+  const toSettings = () => { setOpen(false); const w = data.items[0]?.link?.workspace || window.location.pathname.split("/")[2]; navigate(`/w/${w}/settings/notifications`); };
+  const feed = (
+    <>
           {data.items.length === 0 && (
             <div className="px-4 py-8 text-center">
               <p className="text-body-m text-fg">You’re all caught up</p>
@@ -109,7 +93,61 @@ export default function NotificationsButton({ size = "m" }) {
               </div>
             );
           })}
+    </>
+  );
+  const bell = (
+    <IconButton icon={Bell} size={size} label={data.unread ? `Updates, ${data.unread} unread` : "Updates"} onClick={mobile ? () => setOpen(true) : undefined}>
+      {data.unread > 0 && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-warning ring-2 ring-app" />}
+    </IconButton>
+  );
+
+  /* Mobile — Figma › Updates — Mobile 390 (43:5002): full-screen push. */
+  if (mobile) {
+    return (
+      <>
+        {bell}
+        {createPortal(
+          <AnimatePresence>
+            {open && (
+              <motion.div className="bk fixed inset-0 z-50 flex flex-col bg-app" role="dialog" aria-modal="true" aria-label="Updates"
+                initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={T.sheet}>
+                <header className="flex h-14 shrink-0 items-center gap-1 border-b border-line-subtle px-1">
+                  <IconButton icon={ArrowLeft} size="l" label="Back" onClick={() => setOpen(false)} />
+                  <p className="flex-1 text-center text-title-s text-fg">Updates</p>
+                  <Menu>
+                    <MenuTrigger asChild><IconButton icon={MoreHorizontal} size="l" label="More" /></MenuTrigger>
+                    <MenuContent align="end">
+                      <MenuItem onSelect={markAll} disabled={!data.unread}>Mark all read</MenuItem>
+                      <MenuItem icon={SlidersHorizontal} onSelect={toSettings}>Notification settings</MenuItem>
+                    </MenuContent>
+                  </Menu>
+                </header>
+                <div className="scroll-pane flex-1 py-1 [&_button]:py-3 [&_.eyebrow]:pt-4">{feed}</div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
+      </>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip content="Updates">
+        <PopoverTrigger asChild>
+          {bell}
+        </PopoverTrigger>
+      </Tooltip>
+      <PopoverContent className="w-[min(400px,calc(100vw-24px))] p-0">
+        <div className="flex h-12 items-center justify-between border-b border-line-subtle pl-4 pr-2">
+          <p className="text-body-m font-medium text-fg">Updates</p>
+          <div className="flex items-center gap-1">
+            <button onClick={markAll} disabled={!data.unread} className="h-7 rounded-md px-2 text-body-s text-fg-secondary hover:bg-hover hover:text-fg disabled:opacity-40">Mark all read</button>
+            <IconButton icon={SlidersHorizontal} label="Notification settings" size="s" onClick={toSettings} />
+          </div>
         </div>
+        <div className="max-h-[440px] overflow-y-auto py-1">{feed}</div>
         <p className="border-t border-line-subtle px-4 py-3 text-body-s text-fg-tertiary">Real-time alerts only for attention items. Everything else arrives in your daily digest.</p>
       </PopoverContent>
     </Popover>

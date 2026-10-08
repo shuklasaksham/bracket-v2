@@ -77,9 +77,11 @@ export default function Review() {
     try {
       const res = await v2.acceptReview(projectId, r.id, [...selected], edits);
       refreshAll();
+      window.__bkAccepted = { n: res.accepted, at: Date.now() };
       window.dispatchEvent(new Event("bk:review-accepted"));
       navigate(base);
-      toast.success(`${res.accepted} memories updated · ${res.impact.replace(/ \+?\d+/g, "").split(" · ").join(", ")}`, {
+      const compact = window.matchMedia("(max-width: 767px)").matches;
+      toast.success(compact ? `${res.accepted} memories updated` : `${res.accepted} memories updated · ${res.impact.replace(/ \+?\d+/g, "").split(" · ").join(", ")}`, {
         duration: 10000,
         action: { label: "Undo", onClick: async () => { await v2.undoReview(projectId, r.id); refreshAll(); toast("Changes undone — nothing was lost"); } },
       });
@@ -188,7 +190,7 @@ export default function Review() {
             <Button variant="primary" size="l" icon={Check} className="flex-1" disabled={!count || !canEdit} loading={busy} onClick={accept}>Accept {count} update{count === 1 ? "" : "s"}</Button>
           </div>
         </div>
-        <Sheet open={moreOpen} onOpenChange={setMoreOpen} title="More actions">
+        <Sheet open={moreOpen} onOpenChange={setMoreOpen} title="More actions" hideTitle>
           <div className="-mx-1">
             {[
               [Reply, `Draft reply to ${firstName}`, () => { setMoreOpen(false); draftReply(); }],
@@ -438,10 +440,36 @@ function EdgeBanner({ tone, icon: Icon, title, body, action }) {
   );
 }
 
+/* Figma › Change review · Dismiss with reason — Mobile 390 (145:1062): radio cards. */
+const REASON_CARDS = [
+  ["Not a real request", "Not a real change", "They were thinking out loud."],
+  ["Already handled", "Already handled", "Agreed elsewhere; memory is up to date."],
+  ["Wrong interpretation", "Wrong interpretation", "Bracket misread what was said."],
+];
 function DismissDialog({ open, onOpenChange, total, onConfirm }) {
   const [reason, setReason] = useState(null);
   const [note, setNote] = useState("");
-  useEffect(() => { if (open) { setReason(null); setNote(""); } }, [open]);
+  const mobile = useIsMobile();
+  useEffect(() => { if (open) { setReason(mobile ? REASON_CARDS[0][0] : null); setNote(""); } }, [open, mobile]);
+  if (mobile) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange} title={total === 1 ? "Dismiss this update?" : `Dismiss ${total} updates?`}
+        description="Tell Bracket why — it uses this to interpret future messages better."
+        footer={<><Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button><Button variant="danger" onClick={() => onConfirm(reason, note)}>{total === 1 ? "Dismiss update" : `Dismiss ${total} updates`}</Button></>}>
+        <div className="flex flex-col gap-4" role="radiogroup" aria-label="Why are you dismissing?">
+          {REASON_CARDS.map(([v, l, d]) => (
+            <button key={v} role="radio" aria-checked={reason === v} onClick={() => setReason(v)}
+              className={cn("flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-fast", reason === v ? "border-fg" : "border-line-control")}>
+              <span className={cn("mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border", reason === v ? "border-fg" : "border-line-control")}>
+                {reason === v && <motion.span layoutId="dismiss-dot" className="h-2 w-2 rounded-full bg-fg" transition={T.fast} />}
+              </span>
+              <span><span className="block text-body-m text-fg">{l}</span><span className="block text-body-s text-fg-tertiary">{d}</span></span>
+            </button>
+          ))}
+        </div>
+      </Sheet>
+    );
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={`Dismiss all ${total} proposed update${total === 1 ? "" : "s"}?`}
       description="Memory stays as it is. The email and this decision are kept in Timeline."

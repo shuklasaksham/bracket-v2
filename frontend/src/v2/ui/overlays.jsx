@@ -58,7 +58,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
 }
 
 /* ───────────────────────── Sheet (mobile bottom sheet) ───────────────────────── */
-export function Sheet({ open, onOpenChange, title, description, children, footer }) {
+export function Sheet({ open, onOpenChange, title, description, children, footer, hideTitle }) {
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} shouldScaleBackground={false}>
       <Drawer.Portal>
@@ -66,7 +66,7 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
         <Drawer.Content className="bk fixed inset-x-0 bottom-0 z-50 flex max-h-[92vh] flex-col rounded-t-xl border-t border-line-strong bg-raised focus:outline-none">
           <div className="mx-auto mt-2 mb-1 h-1 w-9 rounded-full bg-white/20" aria-hidden="true" />
           <div className="px-4 pt-2 pb-1">
-            <Drawer.Title className="text-title-m text-fg">{title}</Drawer.Title>
+            <Drawer.Title className={hideTitle ? "sr-only" : "text-title-m text-fg"}>{title}</Drawer.Title>
             {description ? (
               <Drawer.Description className="mt-1 text-body-s text-fg-tertiary">{description}</Drawer.Description>
             ) : (

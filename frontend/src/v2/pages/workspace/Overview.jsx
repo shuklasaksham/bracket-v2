@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle, ArrowRight, ArrowLeft, ChevronRight, Clock, GitFork, CheckCircle2, Mail, RefreshCw, Plus, MessageCircleQuestion, MoreHorizontal,
-  CalendarClock, CalendarDays, Bookmark, Check, ExternalLink, X, Loader2, FileText, Upload, Reply, Unlink,
+  CalendarClock, CalendarDays, Bookmark, Check, ExternalLink, X, Loader2, FileText, Upload, Reply, Unlink, Plug,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays, nextMonday, setHours, setMinutes } from "date-fns";
@@ -16,6 +16,7 @@ import { SectionTitle, Row, Chip, MoreButton } from "../../ui/patterns";
 import { AnimatePresence, Collapse, Stagger, StaggerItem, motion, t as T, useDelayed } from "../../ui/motion";
 import { useAskPanel } from "../../shell/AskPanel";
 import { cn } from "../../../lib/utils";
+import { useIsMobile } from "../../lib/useMedia";
 
 /* Overview — "what needs me, what's coming, what changed".
    Figma › 03 Core screens › ✓ Overview — Desktop 1440 + states (all caught up,
@@ -55,6 +56,7 @@ export default function Overview() {
   const ask = useAskPanel();
   const base = `/w/${projectId}`;
   const showSkeleton = useDelayed(300);
+  const mobile = useIsMobile();
 
   useEffect(() => {
     const on = () => reload();
@@ -116,6 +118,7 @@ export default function Overview() {
   }
   const learning = ws.learning;
   const dimmed = !!readOnly && readOnly !== "viewer";
+  if (mobile && view !== "later") return <MobileOverview ws={ws} data={data} act={act} canEdit={canEdit} learning={learning} base={base} />;
   const laterItems = (later.data?.items || []).filter((a) => a.saved || (a.snoozed_until && new Date(a.snoozed_until) > Date.now()));
 
   return (
@@ -237,6 +240,86 @@ export default function Overview() {
         >
           <MessageCircleQuestion size={16} /> Ask Bracket <Kbd>⌘J</Kbd>
         </motion.button>
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── Mobile 390 — Figma 22:2385 ─────────────────────────
+   Compact header text, attention rows (whole row taps through; inline action
+   only on the top item), Coming up rows. Memory + Since-last-visit live in their tabs. */
+function MobileOverview({ ws, data, act, canEdit, learning, base }) {
+  const n = data.attention.length;
+  return (
+    <div className="scroll-pane h-full">
+      {learning && <LearningBanner learning={learning} />}
+      <div className="pb-8 pt-4">
+        <div className="px-4">
+          <h1 className="text-title-m text-fg">{ws.name}</h1>
+          <p className="mt-1 text-body-s text-fg-tertiary">
+            {n ? `${n} thing${n === 1 ? "" : "s"} need${n === 1 ? "s" : ""} you` : "Nothing needs you"}
+            {window.__bkAccepted && Date.now() - window.__bkAccepted.at < 120e3 ? ` · ${window.__bkAccepted.n} memories updated just now` : ws.memory_updated_at ? ` · Memory updated ${relative(ws.memory_updated_at)}` : ""}
+          </p>
+        </div>
+        <h2 className="mt-5 px-4 text-title-s text-fg">Needs your attention</h2>
+        {n === 0 && !learning ? (
+          <div className="mt-3 px-4"><CaughtUp base={base} /></div>
+        ) : (
+          <ul className="mt-3 border-t border-line-subtle">
+            <AnimatePresence initial={false}>
+              {data.attention.map((a, i) => {
+                const [Icon, color] = KIND_ICON[a.kind] || KIND_ICON.waiting;
+                const showAction = i === 0 && a.action?.primary;
+                const viewOnly = !canEdit && a.action?.kind !== "view";
+                return (
+                  <motion.li key={a.id} layout className="overflow-hidden border-b border-line-subtle" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={T.base}>
+                    <div
+                      role="button" tabIndex={0}
+                      onClick={() => act(a)}
+                      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), act(a))}
+                      className="flex flex-col gap-2 p-4 transition-colors duration-fast active:bg-hover"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Icon size={16} className={cn("shrink-0", color)} aria-hidden="true" />
+                        <span className={cn("flex-1 text-caption", EYEBROW_TONE[a.tone] || "text-fg-secondary")}>{(a.eyebrow || "").replace(/ · affects.*$/, "")}</span>
+                        <ChevronRight size={16} className="shrink-0 text-fg-tertiary" aria-hidden="true" />
+                      </span>
+                      <span className="text-title-s text-fg">{a.title}</span>
+                      {a.chip && <span><Chip provider={a.chip.provider} label={a.chip.label} at={a.chip.at} /></span>}
+                      {showAction && (
+                        <Button
+                          variant={viewOnly ? "secondary" : "primary"} className="h-11 w-full"
+                          onClick={(e) => { e.stopPropagation(); act(a); }}
+                        >
+                          {viewOnly ? a.action.label.replace(/^Review/, "View") : a.action.label}
+                        </Button>
+                      )}
+                    </div>
+                  </motion.li>
+                );
+              })}
+            </AnimatePresence>
+            {learning && [0, 1].map((i) => (
+              <li key={`s${i}`} className="border-b border-line-subtle p-4"><Skeleton className="h-3 w-1/3" /><Skeleton className="mt-3 h-3 w-3/4" /></li>
+            ))}
+          </ul>
+        )}
+        <h2 className="mt-5 px-4 text-title-s text-fg">Coming up</h2>
+        <ul className="mt-3 border-t border-line-subtle">
+          {data.coming_up.map((c) => {
+            const st = dueStatus(c);
+            return (
+              <li key={c.id} className="border-b border-line-subtle">
+                <Link to={`${base}/memory/commitment?item=${c.id}`} className="flex min-h-[52px] items-center gap-3 px-4 transition-colors duration-fast active:bg-hover">
+                  <span className="w-[72px] shrink-0 font-mono text-[12px] text-fg-tertiary">{c.due ? dueLabel(c.due) : "No date"}</span>
+                  <span className="min-w-0 flex-1 truncate text-body-s text-fg">{c.title}</span>
+                  {st && <Badge tone={st.tone} dot>{st.label}</Badge>}
+                </Link>
+              </li>
+            );
+          })}
+          {!data.coming_up.length && <li className="px-4 py-4 text-body-s text-fg-tertiary">No open commitments yet.</li>}
+        </ul>
       </div>
     </div>
   );
@@ -397,6 +480,25 @@ function LearningBanner({ learning }) {
 
 function EmptyWorkspace({ ws, base, canEdit }) {
   const navigate = useNavigate();
+  const mobile = useIsMobile();
+  if (mobile) {
+    // Figma › Overview · New workspace, no sources — Mobile 390 (153:935)
+    return (
+      <div className="scroll-pane h-full px-4 pb-10 pt-4">
+        <h1 className="text-title-m text-fg">{ws.name}</h1>
+        <motion.div className="mt-12 flex flex-col items-center text-center" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={T.base}>
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.06]"><Plug size={18} strokeWidth={1.75} className="text-fg-secondary" /></span>
+          <p className="mt-4 text-title-m text-fg">Connect a source to start</p>
+          <p className="mt-2 max-w-[330px] text-body-s text-fg-secondary">Bracket learns scope, decisions and commitments from the conversations you choose. Nothing is read until you pick it.</p>
+        </motion.div>
+        <div className="mt-8 flex flex-col gap-4">
+          <Button variant="primary" className="h-11 w-full" disabled={!canEdit} onClick={() => navigate(`${base}/sources?add=gmail`)}>Connect Gmail</Button>
+          <Button variant="secondary" className="h-11 w-full" disabled={!canEdit} onClick={() => navigate(`${base}/sources?add=slack`)}>Connect Slack</Button>
+          <Button variant="ghost" className="h-11 w-full" disabled={!canEdit} onClick={() => navigate(`${base}/sources?note=1`)}>Add a note</Button>
+        </div>
+      </div>
+    );
+  }
   const rows = [
     { icon: <SourceMark provider="gmail" size={16} />, title: "Connect Gmail", sub: "Pick the client threads", cta: "Connect", to: `${base}/sources?add=gmail` },
     { icon: <SourceMark provider="slack" size={16} />, title: "Connect Slack", sub: "Pick project channels", cta: "Connect", to: `${base}/sources?add=slack` },

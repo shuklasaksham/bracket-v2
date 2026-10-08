@@ -20,7 +20,7 @@ import { UseCases, Changelog, About, Contact } from "./v2/pages/marketing/More";
 import { AuthCallback, Onboarding, Claim, PaymentResult } from "./v2/pages/auth";
 import { SignIn, SignUp, VerifyEmail, ForgotPassword, ResetPassword, AcceptInvite, GoogleHandoff } from "./v2/pages/account/Auth";
 import Onboarding2, { OAuthMock } from "./v2/pages/account/Onboarding";
-import WorkspaceLayout from "./v2/pages/workspace/WorkspaceLayout";
+import WorkspaceLayout, { WorkspaceNotFound } from "./v2/pages/workspace/WorkspaceLayout";
 import Overview from "./v2/pages/workspace/Overview";
 import Review from "./v2/pages/workspace/Review";
 import Memory from "./v2/pages/workspace/Memory";
@@ -142,6 +142,7 @@ export default function App() {
                         <Route path="files/:fid" element={<Files />} />
                         <Route path="settings" element={<WorkspaceSettings />} />
                         <Route path="settings/:section" element={<WorkspaceSettings />} />
+                        <Route path="*" element={<WorkspaceNotFound />} />
                       </Route>
 
                       {/* v1.9 links keep working */}

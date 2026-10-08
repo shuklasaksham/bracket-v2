@@ -479,7 +479,7 @@ function WorkspaceSheet({ open, onOpenChange }) {
 
 /* Pushed screens on mobile (Figma › Mobile sub-header): back, centred title,
    optional ⋯ — the tab bar and workspace header are hidden. */
-const PUSH = [/\/review(\/|$)/, /\/resolve\//, /\/conversations\/[^/]+/, /\/sources\/[^/]+/, /\/files\/[^/]+/, /\/settings/, /\/timeline\/[^/]+/, /[?&]item=/, /[?&]person=/];
+const PUSH = [/\/review(\/|$)/, /\/resolve\//, /\/conversations\/[^/]+/, /\/sources\/[^/]+/, /\/files\/[^/]+/, /\/settings/, /\/timeline\/[^/]+/, /[?&]item=/, /[?&]person=/, /^\/w\/[^/]+\/(?!review|resolve|memory|conversations|ask|timeline|sources|files|settings)[^/]+/];
 export const isPushRoute = (loc) => PUSH.some((r) => r.test(loc.pathname + loc.search));
 
 export function MobileSubHeader({ title, onBack, actions }) {

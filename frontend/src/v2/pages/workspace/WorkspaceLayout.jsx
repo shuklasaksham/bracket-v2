@@ -1,9 +1,10 @@
 import React from "react";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import { SearchX, RotateCcw } from "lucide-react";
+import { SearchX, RotateCcw, Search } from "lucide-react";
 import { motion } from "framer-motion";
 import { WorkspaceProvider, useWorkspace } from "../../lib/workspace";
-import AppShell from "../../shell/AppShell";
+import AppShell, { MobileSubHeader } from "../../shell/AppShell";
+import { useIsMobile } from "../../lib/useMedia";
 import SessionExpired from "../../shell/SessionExpired";
 import { Button, EmptyState } from "../../ui/primitives";
 import { t as T } from "../../ui/motion";
@@ -54,5 +55,24 @@ function Guard() {
       </motion.div>
       <SessionExpired />
     </AppShell>
+  );
+}
+
+/* In-workspace 404 — Figma › 404 · Not found — Mobile 390 (153:1054). */
+export function WorkspaceNotFound() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const mobile = useIsMobile();
+  return (
+    <div className="flex h-full flex-col">
+      <Seo title="Not found" />
+      {mobile && <MobileSubHeader title="Not found" onBack={() => navigate(`/w/${id}`)} />}
+      <div className="flex flex-1 flex-col items-center px-4 pt-12 text-center md:justify-center md:pt-0">
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.06]"><Search size={18} strokeWidth={1.75} className="text-fg-secondary" /></span>
+        <h1 className="mt-4 text-title-m text-fg">This page doesn’t exist</h1>
+        <p className="mt-2 max-w-[360px] text-body-s text-fg-secondary">The link may be old, or you may not have access to this workspace.</p>
+        <Button variant="primary" className="mt-8 h-11 w-full md:h-8 md:w-auto" onClick={() => navigate(`/w/${id}`)}>Go to Overview</Button>
+      </div>
+    </div>
   );
 }

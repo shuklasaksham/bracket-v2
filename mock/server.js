@@ -23,7 +23,8 @@ const undoStack = {}; // review id → snapshot of memory before accept
 
 const SCENARIOS = {
   default: "Everything normal (monthly plan)",
-  trial: "Trial — 3 days left",
+  trial: "Trial — 9 days left",
+  trial_ending: "Trial — 3 days left",
   trial_ended: "Trial ended — read-only",
   payment_failed: "Payment failed — retrying, grace period",
   canceled: "Subscription canceled — active until period end",
@@ -47,13 +48,13 @@ function applyScenario(name) {
   loggedIn = name !== "signed_out";
   sessionExpired = name === "session_expired";
   const ws = S.workspaces[0];
-  if (name === "trial") Object.assign(S.billing, { plan: "trial", status: "trialing", trial_ends_at: d(9), renews_on: null, card: null, label: "Trial", amount: 0, invoices: [], workspaces: { used: 1, limit: 10 } });
+  if (name === "trial" || name === "trial_ending") Object.assign(S.billing, { plan: "trial", status: "trialing", trial_ends_at: d(name === "trial" ? 9 : 3), renews_on: null, card: null, label: "Trial", amount: 0, invoices: [], workspaces: { used: 1, limit: 10 } });
   if (name === "trial_ended") Object.assign(S.billing, { plan: "trial", status: "expired", trial_ends_at: d(-1), renews_on: null, card: null, label: "Trial", amount: 0, invoices: [] });
   if (name === "payment_failed") Object.assign(S.billing, { status: "past_due", retry: { attempt: 1, of: 3, last_at: d(0), next_at: d(2), grace_ends_at: d(7) } });
   if (name === "canceled") Object.assign(S.billing, { status: "canceled", ends_on: d(39) });
   if (name === "expiring") Object.assign(ws, { status: "expiring", expires_at: d(5) }) && Object.assign(S.billing, { plan: "project", label: "Per project", amount: 199, interval: "project" });
   if (name === "archived") Object.assign(ws, { status: "archived", archived_at: d(-1) });
-  if (name === "deletion_scheduled") Object.assign(ws, { status: "deletion_scheduled", deletion_at: d(30) });
+  if (name === "deletion_scheduled") Object.assign(ws, { status: "deletion_scheduled", deletion_at: d(7) });
   if (name === "viewer") ws.role = "viewer";
   if (name === "plan_limit") Object.assign(S.billing, { workspaces: { used: 10, limit: 10 } });
   if (name === "all_caught_up") { S.attention = []; S.reviews = []; S.memory.forEach((m) => { delete m.pending_change; }); S.updates.forEach((u) => (u.read = true)); }
