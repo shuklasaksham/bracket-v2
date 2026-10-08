@@ -435,6 +435,7 @@ function build() {
       { key: "activity", label: "New activity", help: "Messages read, notes processed", in_app: false, email: false, push: false },
     ],
     digest: { enabled: true, time: "9:00", days: "Weekdays" },
+    weekly: { enabled: false },
   };
 
   const sessions = [

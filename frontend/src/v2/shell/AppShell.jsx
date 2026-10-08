@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutGrid, Layers, MessagesSquare, History, Plus, MessageCircleQuestion, Folder, PanelLeft, Search, Menu as MenuIcon,
-  ChevronDown, ArrowLeft, Settings as SettingsIcon, LogOut, CreditCard, Check, Bell, Unlink, Users, ShieldCheck, User, Plug,
+  ChevronDown, ArrowLeft, Settings as SettingsIcon, LogOut, CreditCard, Check, Bell, Unlink, Users, ShieldCheck, User, Plug, SlidersHorizontal, ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../lib/utils";
@@ -17,6 +17,8 @@ import NotificationsButton from "./Notifications";
 import { useCommand } from "./CommandPalette";
 import WorkspaceBanner from "./WorkspaceBanner";
 import DemoBar from "./DemoBar";
+import PlanLimit, { canCreateWorkspace } from "./PlanLimit";
+import { loadBilling } from "../lib/account";
 
 /* Responsive model (Figma › Breakpoints & layout):
    ≥1280 sidebar (260 / 232 at 1280) — the toggle collapses it to the icon rail
@@ -93,6 +95,7 @@ function SwitcherList({ onPick, onNew, currentId }) {
 function WorkspaceSwitcher({ variant = "bar" }) {
   const { project } = useWorkspace();
   const [open, setOpen] = useState(false);
+  const [limit, setLimit] = useState(null);
   const navigate = useNavigate();
   const client = project?.client_name || "";
   const name = project?.name || "Workspace";
@@ -129,7 +132,8 @@ function WorkspaceSwitcher({ variant = "bar" }) {
         )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[320px] p-0">
-        <SwitcherList currentId={project?.id} onPick={(p) => { setOpen(false); navigate(`/w/${p.id}`); }} onNew={() => { setOpen(false); navigate("/connect?new=1"); }} />
+        <SwitcherList currentId={project?.id} onPick={(p) => { setOpen(false); navigate(`/w/${p.id}`); }} onNew={async () => { setOpen(false); if (await canCreateWorkspace()) navigate("/connect?new=1"); else setLimit((await loadBilling()).workspaces); }} />
+        <PlanLimit open={!!limit} onOpenChange={(o) => !o && setLimit(null)} used={limit?.used} limit={limit?.limit} wid={project?.id} />
       </PopoverContent>
     </Popover>
   );
@@ -420,60 +424,43 @@ function TabBar() {
 function WorkspaceSheet({ open, onOpenChange }) {
   const { project, projectId } = useWorkspace();
   const { projects } = useProjects();
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [limit, setLimit] = useState(null);
   const go = (to) => { onOpenChange(false); navigate(to); };
+  const meta = (p) => [p.client_name, p.attention ? `${p.attention} need${p.attention === 1 ? "s" : ""} attention` : null].filter(Boolean).join(" · ");
+  const newWorkspace = async () => {
+    if (await canCreateWorkspace()) go("/connect?new=1");
+    else { onOpenChange(false); setLimit((await loadBilling()).workspaces); }
+  };
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Workspaces">
-      <div className="-mx-1 space-y-0.5">
-        {(projects || []).filter((p) => p.status === "active" || p.id === project?.id).map((p) => (
-          <button key={p.id} onClick={() => go(`/w/${p.id}`)} className="flex min-h-[48px] w-full items-center gap-3 rounded-md px-2 text-left hover:bg-hover">
-            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-raised border border-line text-[11px] font-semibold">{p.initials || initialsOf(p.name)}</span>
-            <span className="flex-1 min-w-0">
-              <span className="block truncate text-body-m text-fg">{p.name}</span>
-              <span className="block truncate text-body-s text-fg-tertiary">{p.attention ? `${p.attention} need${p.attention === 1 ? "s" : ""} attention` : p.client_name}</span>
-            </span>
-            {p.id === project?.id && <Check size={16} />}
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange} title="Workspaces" hideTitle>
+        <p className="eyebrow px-1 pb-2">Workspaces</p>
+        <div className="space-y-0.5">
+          {(projects || []).filter((p) => p.status === "active" || p.id === project?.id).map((p) => (
+            <button key={p.id} onClick={() => go(`/w/${p.id}`)} className={cn("flex min-h-[52px] w-full items-center gap-3 rounded-md px-2 text-left transition-colors duration-fast active:bg-hover", p.id === project?.id && "bg-white/[0.06]")}>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-body-s text-fg">{p.name}</span>
+                <span className="block truncate text-body-s text-fg-tertiary">{meta(p)}</span>
+              </span>
+              {p.id === project?.id && <Check size={18} className="text-fg" />}
+            </button>
+          ))}
+        </div>
+        <div className="my-3 h-px bg-line-subtle" />
+        {[
+          { label: "Sources", icon: Plug, on: () => go(`/w/${projectId}/sources`) },
+          { label: "Files", icon: Folder, on: () => go(`/w/${projectId}/files`) },
+          { label: "Settings", icon: SlidersHorizontal, on: () => go(`/w/${projectId}/settings`) },
+          { label: "New workspace", icon: Plus, on: newWorkspace },
+        ].map((r) => (
+          <button key={r.label} onClick={r.on} className="flex h-[52px] w-full items-center gap-3 rounded-md px-2 text-body-m text-fg transition-colors duration-fast active:bg-hover">
+            <r.icon size={18} strokeWidth={1.75} className="text-fg-secondary" /> <span className="flex-1 text-left">{r.label}</span><ChevronRight size={16} className="text-fg-tertiary" />
           </button>
         ))}
-        <button onClick={() => go("/connect?new=1")} className="flex h-12 w-full items-center gap-3 rounded-md px-2 text-body-m text-fg-secondary hover:bg-hover hover:text-fg">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line"><Plus size={16} /></span> New workspace
-        </button>
-      </div>
-      <div className="my-3 h-px bg-line-subtle" />
-      <p className="eyebrow px-1 pb-1">This workspace</p>
-      {[
-        { label: "Sources", to: `/w/${projectId}/sources`, icon: Plug },
-        { label: "Files", to: `/w/${projectId}/files`, icon: Folder },
-        { label: "Members", to: `/w/${projectId}/settings/members`, icon: Users },
-        { label: "Workspace settings", to: `/w/${projectId}/settings/workspace`, icon: SettingsIcon },
-      ].map((r) => (
-        <button key={r.label} onClick={() => go(r.to)} className="flex h-12 w-full items-center gap-3 rounded-md px-2 text-body-m text-fg-secondary hover:bg-hover hover:text-fg">
-          <r.icon size={18} strokeWidth={1.75} /> {r.label}
-        </button>
-      ))}
-      <div className="my-3 h-px bg-line-subtle" />
-      <p className="eyebrow px-1 pb-1">Account</p>
-      {[
-        { label: "Profile", to: `/w/${projectId}/settings/profile`, icon: User },
-        { label: "Notifications", to: `/w/${projectId}/settings/notifications`, icon: Bell },
-        { label: "Billing", to: `/w/${projectId}/settings/billing`, icon: CreditCard },
-        { label: "Privacy & data", to: `/w/${projectId}/settings/privacy`, icon: ShieldCheck },
-      ].map((r) => (
-        <button key={r.label} onClick={() => go(r.to)} className="flex h-12 w-full items-center gap-3 rounded-md px-2 text-body-m text-fg-secondary hover:bg-hover hover:text-fg">
-          <r.icon size={18} strokeWidth={1.75} /> {r.label}
-        </button>
-      ))}
-      <div className="my-3 h-px bg-line-subtle" />
-      <div className="flex items-center gap-3 px-2 pb-2">
-        <Avatar name={user?.name} email={user?.email} src={user?.picture} />
-        <div className="flex-1 min-w-0">
-          <p className="truncate text-body-m text-fg">{user?.name}</p>
-          <p className="truncate text-body-s text-fg-tertiary">{user?.email}</p>
-        </div>
-        <IconButton icon={LogOut} label="Sign out" size="l" onClick={async () => { await logout(); navigate("/login"); }} />
-      </div>
-    </Sheet>
+      </Sheet>
+      <PlanLimit open={!!limit} onOpenChange={(o) => !o && setLimit(null)} used={limit?.used} limit={limit?.limit} wid={projectId} />
+    </>
   );
 }
 

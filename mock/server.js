@@ -54,7 +54,7 @@ function applyScenario(name) {
   if (name === "canceled") Object.assign(S.billing, { status: "canceled", ends_on: d(39) });
   if (name === "expiring") Object.assign(ws, { status: "expiring", expires_at: d(5) }) && Object.assign(S.billing, { plan: "project", label: "Per project", amount: 199, interval: "project" });
   if (name === "archived") Object.assign(ws, { status: "archived", archived_at: d(-1) });
-  if (name === "deletion_scheduled") Object.assign(ws, { status: "deletion_scheduled", deletion_at: d(7) });
+  if (name === "deletion_scheduled") Object.assign(ws, { status: "deletion_scheduled", deletion_at: d(30) });
   if (name === "viewer") ws.role = "viewer";
   if (name === "plan_limit") Object.assign(S.billing, { workspaces: { used: 10, limit: 10 } });
   if (name === "all_caught_up") { S.attention = []; S.reviews = []; S.memory.forEach((m) => { delete m.pending_change; }); S.updates.forEach((u) => (u.read = true)); }
@@ -173,10 +173,11 @@ on("GET", "/api/v2/me/notifications", () => S.notifications);
 on("PATCH", "/api/v2/me/notifications", ({ body }) => {
   if (body.event) { const e = S.notifications.events.find((x) => x.key === body.event); if (e) e[body.channel] = !!body.value; }
   if (body.digest) Object.assign(S.notifications.digest, body.digest);
+  if (body.weekly) S.notifications.weekly = { ...(S.notifications.weekly || {}), ...body.weekly };
   return S.notifications;
 });
 on("POST", "/api/v2/me/export", () => ({ ok: true, email: S.me.email, ready_in: "about 10 minutes" }));
-on("DELETE", "/api/v2/me", ({ body }) => { if ((body.confirm || "") !== "DELETE") throw new HttpError(400, "Type DELETE to confirm."); loggedIn = false; return { ok: true, deletes_on: d(7) }; });
+on("DELETE", "/api/v2/me", ({ body }) => { if ((body.confirm || "") !== "DELETE") throw new HttpError(400, "Type DELETE to confirm."); loggedIn = false; return { ok: true, deletes_on: d(30) }; });
 on("POST", "/api/v2/contact", ({ body }) => { if (!body.email || !body.message) throw new HttpError(400, "Add your email and a message."); return { ok: true }; });
 
 /* billing */
@@ -211,7 +212,7 @@ on("POST", "/api/v2/w/:wid/unarchive", ({ p }) => {
   w.status = "active"; delete w.archived_at; return wsSummary(w);
 });
 on("POST", "/api/v2/w/:wid/leave", ({ p }) => { S.workspaces = S.workspaces.filter((w) => w.id !== p.wid); return { ok: true }; });
-on("POST", "/api/v2/w/:wid/delete", ({ p, body }) => { const w = ws(p.wid); if ((body.confirm || "") !== w.name) throw new HttpError(400, "Type the workspace name to confirm."); w.status = "deletion_scheduled"; w.deletion_at = d(7); const next = S.workspaces.find((x) => x.id !== w.id && x.status === "active"); return { ...wsSummary(w), next_workspace: next?.id || null }; });
+on("POST", "/api/v2/w/:wid/delete", ({ p, body }) => { const w = ws(p.wid); if ((body.confirm || "") !== w.name) throw new HttpError(400, "Type the workspace name to confirm."); w.status = "deletion_scheduled"; w.deletion_at = d(30); const next = S.workspaces.find((x) => x.id !== w.id && x.status === "active"); return { ...wsSummary(w), next_workspace: next?.id || null }; });
 on("POST", "/api/v2/w/:wid/restore", ({ p }) => { const w = ws(p.wid); w.status = "active"; delete w.deletion_at; return wsSummary(w); });
 on("POST", "/api/v2/w/:wid/export", () => ({ ok: true, email: S.me.email, formats: ["md", "pdf", "json"] }));
 on("GET", "/api/v2/w/:wid/settings", () => S.workspaceSettings);

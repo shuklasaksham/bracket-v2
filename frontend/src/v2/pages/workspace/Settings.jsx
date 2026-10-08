@@ -15,6 +15,7 @@ import { Avatar, Badge, Button, IconButton, Input, SourceMark, Toggle } from "..
 import { Dialog, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/overlays";
 import { AnimatePresence, Stagger, StaggerItem, motion, t as T } from "../../ui/motion";
 import { MobileSubHeader } from "../../shell/AppShell";
+import SettingsMobile from "./SettingsMobile";
 import { SourceStatus } from "../../features/sources";
 import { cn } from "../../../lib/utils";
 
@@ -30,7 +31,8 @@ const money = (amount, cur) => (cur === "inr" ? `₹${Number(amount).toLocaleStr
 const money2 = (amount, cur) => (cur === "inr" ? `₹${Number(amount).toLocaleString("en-IN")}.00` : `$${Number(amount).toFixed(2)}`);
 
 export default function Settings() {
-  const { section = "profile" } = useParams();
+  const { section: rawSection } = useParams();
+  const section = rawSection || "profile";
   const { projectId } = useWorkspace();
   const mobile = useIsMobile();
   const navigate = useNavigate();
@@ -43,6 +45,8 @@ export default function Settings() {
       <Body />
     </motion.div>
   );
+  // Mobile 390 has its own pushed screens (Figma 03b › 07) — see SettingsMobile.
+  if (mobile && rawSection !== "sources") return <SettingsMobile section={rawSection} />;
   if (mobile) {
     return (
       <div className="flex h-full flex-col">
@@ -220,7 +224,7 @@ function WorkspaceSection() {
       <Card danger>
         <p className="text-body-m font-medium text-danger">Danger zone</p>
         <Line className="mt-3" title="Archive workspace" help="Stops syncing and makes memory read-only. You can restore it any time." action={<Button size="s" onClick={() => setDialog("archive")} disabled={!owner || workspace?.status === "archived"}>Archive</Button>} />
-        <Line className="mt-3" title="Delete workspace" help="Permanently deletes memory, history and drafts after 7 days. Sources aren’t affected." action={<Button size="s" variant="danger" onClick={() => { setTyped(""); setDialog("delete"); }} disabled={!owner}>Delete workspace</Button>} />
+        <Line className="mt-3" title="Delete workspace" help="Recoverable for 30 days, then permanently deleted. Sources aren’t affected." action={<Button size="s" variant="danger" onClick={() => { setTyped(""); setDialog("delete"); }} disabled={!owner}>Delete workspace</Button>} />
         <Line className="mt-3" title="Leave workspace" help="Remove yourself. Owners must transfer ownership first." action={<Button size="s" onClick={() => (owner ? toast("Transfer ownership first", { description: "Make another member an Owner in Members, then leave." }) : setDialog("leave"))}>Leave</Button>} />
       </Card>
 
@@ -231,14 +235,14 @@ function WorkspaceSection() {
         description={`You’ll lose access to ${workspace?.name}. Memories and replies you created stay, attributed to you. Owners can invite you back.`}
         footer={<><Button variant="ghost" onClick={() => setDialog(null)}>Cancel</Button><Button variant="danger" onClick={async () => { await v2.leave(projectId); setDialog(null); await fetchProjects(true); navigate("/app"); toast(`You left ${workspace?.name}`); }}>Leave workspace</Button></>} />
       <Dialog open={dialog === "delete"} onOpenChange={(o) => !o && setDialog(null)} title="Delete this workspace?"
-        description={`Memory (${workspace?.counts?.memory ?? 0} items), history and drafts for ${workspace?.name} will be deleted after 7 days. Gmail, Slack and Notes aren’t affected.`}
+        description={`Memory (${workspace?.counts?.memory ?? 0} items), history and drafts for ${workspace?.name} are recoverable for 30 days, then permanently deleted. Gmail, Slack and Notes aren’t affected.`}
         footer={<><Button variant="ghost" onClick={() => setDialog(null)}>Cancel</Button><Button variant="danger" disabled={typed !== workspace?.name} onClick={async () => {
           const r = await v2.deleteWorkspace(projectId, typed); setDialog(null); await fetchProjects(true);
           navigate(r.next_workspace ? `/w/${r.next_workspace}` : "/app");
           toast.success(`“${workspace?.name}” will be deleted on ${format(new Date(r.deletion_at), "MMM d")}`, { duration: 15000, action: { label: "Cancel deletion", onClick: async () => { await v2.restoreWorkspace(projectId); fetchProjects(true); toast("Deletion canceled"); } } });
         }}>Delete workspace</Button></>}>
         <FieldRow label="Type the workspace name to confirm" id="del-name"><Input id="del-name" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={workspace?.name} autoFocus /></FieldRow>
-        <p className="mt-3 flex items-center gap-2 text-[12px] text-fg-tertiary"><Info size={14} /> Tip: export memory & history first. You can cancel deletion within 7 days.</p>
+        <p className="mt-3 flex items-center gap-2 text-[12px] text-fg-tertiary"><Info size={14} /> Tip: export memory & history first. You can cancel deletion within 30 days.</p>
       </Dialog>
     </div>
   );
@@ -602,14 +606,14 @@ function Privacy() {
       </Card>
       <Card>
         <Line title="Export all my data" help="Every workspace, memory, history and draft. Emailed within 24 hours." action={<Button size="s" onClick={async () => { const r = await v2.exportAccount(); toast.success("Export requested", { description: `We’ll email ${r.email} within 24 hours.` }); }}>Request export</Button>} />
-        <Line className="mt-3" title="Original message retention" help="Bracket keeps quoted excerpts, not full mailboxes. 12 months." />
+        <Line className="mt-3" title="Original message retention" help="Bracket keeps quoted excerpts, not full mailboxes. Deleted data is recoverable for 30 days, then permanently removed." />
       </Card>
       <Card danger>
-        <Line title={<span className="text-danger">Delete my account</span>} help="Deletes your account and every workspace you own after 7 days. Connected tools aren’t affected."
+        <Line title={<span className="text-danger">Delete my account</span>} help="Your account and the workspaces you own are recoverable for 30 days, then permanently deleted. Connected tools aren’t affected."
           action={<Button size="s" variant="danger" onClick={() => { setTyped(""); setDel(true); }}>Delete account</Button>} />
       </Card>
-      <Dialog open={del} onOpenChange={setDel} title="Delete your account?" description={`This deletes your account and the ${owned.length} workspaces you own after 7 days. Members of shared workspaces lose access.`}
-        footer={<><Button variant="ghost" onClick={() => setDel(false)}>Cancel</Button><Button variant="danger" disabled={typed !== "DELETE"} onClick={async () => { await v2.deleteAccount(typed); setDel(false); navigate("/login"); toast("Your account will be deleted in 7 days", { description: "Sign in before then to cancel." }); }}>Delete account</Button></>}>
+      <Dialog open={del} onOpenChange={setDel} title="Delete your account?" description={`This deletes your account and the ${owned.length} workspaces you own after 30 days. Members of shared workspaces lose access.`}
+        footer={<><Button variant="ghost" onClick={() => setDel(false)}>Cancel</Button><Button variant="danger" disabled={typed !== "DELETE"} onClick={async () => { await v2.deleteAccount(typed); setDel(false); navigate("/login"); toast("Your account will be deleted in 30 days", { description: "Sign in before then to cancel." }); }}>Delete account</Button></>}>
         <FieldRow label="Type DELETE to confirm" id="del-acc"><Input id="del-acc" value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus /></FieldRow>
       </Dialog>
     </div>
