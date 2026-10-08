@@ -373,15 +373,15 @@ export function Toggle({ checked, onChange, label, disabled }) {
       disabled={disabled}
       onClick={() => onChange?.(!checked)}
       className={cn(
-        "relative inline-flex h-5 w-8 shrink-0 items-center rounded-full border transition-colors duration-fast",
-        checked ? "bg-inverse border-inverse" : "bg-transparent border-line-control",
+        "relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full border transition-colors duration-fast",
+        checked ? "bg-inverse border-inverse" : "bg-white/[0.06] border-line-control",
         disabled && "opacity-40",
       )}
     >
       <span
         className={cn(
-          "inline-block h-3.5 w-3.5 rounded-full transition-transform duration-fast ease-out",
-          checked ? "translate-x-[14px] bg-app" : "translate-x-[2px] bg-fg-tertiary",
+          "inline-block h-3 w-3 rounded-full transition-transform duration-fast ease-out",
+          checked ? "translate-x-[16px] bg-app" : "translate-x-[2px] bg-fg-tertiary",
         )}
       />
     </button>

@@ -74,6 +74,7 @@ export const v2 = {
   timeline: (wid, params) => g(`${W(wid)}/timeline`, params),
   event: (wid, eid) => g(`${W(wid)}/timeline/${eid}`),
   restoreEvent: (wid, eid) => p(`${W(wid)}/timeline/${eid}/restore`),
+  undoRestore: (wid, eid) => p(`${W(wid)}/timeline/${eid}/undo-restore`),
   exportTimeline: (wid, body) => p(`${W(wid)}/timeline/export`, body),
 
   /* sources */

@@ -485,28 +485,47 @@ on("POST", "/api/v2/w/:wid/ask", ({ p, body }) => {
 on("POST", "/api/v2/w/:wid/ask/:qid/feedback", () => ({ ok: true }));
 
 /* timeline */
+const TL_TYPES = {
+  changes: (e) => e.kind === "change_detected",
+  memory: (e) => !!e.memory,
+  messages: (e) => /email|message/.test(e.kind),
+  notes: (e) => /note|file/.test(e.kind),
+  sources: (e) => !!e.system,
+};
 on("GET", "/api/v2/w/:wid/timeline", ({ p, q }) => {
-  let E = dataFor(p.wid).events || [];
+  const all = dataFor(p.wid).events || [];
+  let E = all;
   if (q.memory_only === "1") E = E.filter((e) => e.memory);
   if (q.source && q.source !== "all") E = E.filter((e) => e.actor?.provider === q.source || e.source === q.source);
-  if (q.type && q.type !== "all") E = E.filter((e) => (q.type === "changes" ? e.memory : q.type === "messages" ? /email|message/.test(e.kind) : q.type === "system" ? e.system : true));
+  if (q.type && q.type !== "all" && TL_TYPES[q.type]) E = E.filter(TL_TYPES[q.type]);
   if (q.range) { const days = { "7d": 7, "30d": 30, "90d": 90 }[q.range]; if (days) E = E.filter((e) => Date.now() - new Date(e.at) < days * DAY); }
-  if (q.q) { const s = q.q.toLowerCase(); E = E.filter((e) => (e.title + e.meta + (e.actor?.label || "")).toLowerCase().includes(s)); }
-  return { events: E, has_more: false };
+  if (q.q) { const s = q.q.toLowerCase(); E = E.filter((e) => (e.title + " " + (e.meta || "") + " " + (e.actor?.label || "")).toLowerCase().includes(s)); }
+  const counts = { all: all.length + 52, changes: all.filter(TL_TYPES.changes).length + 5, memory: all.filter(TL_TYPES.memory).length + 11, messages: all.filter(TL_TYPES.messages).length + 25, notes: all.filter(TL_TYPES.notes).length + 4, sources: all.filter(TL_TYPES.sources).length + 5 };
+  return { events: E, has_more: !q.q && q.type !== "changes", counts };
 });
 on("GET", "/api/v2/w/:wid/timeline/:eid", ({ p }) => {
   const e = S.events.find((x) => x.id === p.eid); if (!e) throw new HttpError(404, "Event not found");
   if (e.detail) return e;
+  if (e.kind === "sync") return { ...e, detail: { kind: "sync", eyebrow: "Source synced", heading: e.title, rows: [["When", e.at], ["Source", e.actor.label], ["Read", "38 new messages"], ["Found", "1 decision · 0 conflicts"]], result: [{ category: "Decisions", text: "Build in Webflow (not Framer) — added automatically, high confidence" }], source_id: e.source === "slack" ? "s_slack" : "s_gmail" } };
   return { ...e, detail: { heading: e.title.split(" — ")[1] || e.title, eyebrow: e.title.split(" — ")[0], when: e.at, triggered_by: e.actor?.label, changes: [], source: e.actor ? { provider: e.actor.provider, label: e.actor.label, quote: e.meta } : null, restorable: false, system: e.system } };
 });
 on("POST", "/api/v2/w/:wid/timeline/:eid/restore", ({ p }) => {
   guardWrite(ws(p.wid)); const e = S.events.find((x) => x.id === p.eid);
+  if (!e?.detail?.restorable) throw new HttpError(400, "This event can’t be restored.");
   const at = new Date().toISOString();
   if (e.id === "ev4") { const m = byId("de1"); m.versions = [...(m.versions || []), { at: m.changed_at, title: m.title, superseded_at: at }]; m.title = "Homepage uses a classic, image-led hero"; m.changed_at = at; m.history.unshift({ at, text: "Restored previous version — by Maya" }); }
-  const ne = { id: uid("ev"), at, kind: "restored", title: `Previous version restored — ${(e.detail?.heading || e.title).toLowerCase()}`, actor: { provider: "manual", label: "Maya Rao" }, meta: "Restored by Maya Rao · nothing deleted", memory: true, dot: "success", restored_from: e.id };
-  S.events.unshift(ne); return { ok: true, event: ne };
+  const ne = { id: uid("ev"), at, kind: "restored", title: `Version restored — ${(e.detail.heading || "").toLowerCase().replace(" is now editorial", " is classic again")}`, actor: { provider: e.actor.provider, label: `${e.actor.label} · ${new Date(e.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` }, meta: `Restored by Maya Rao · conflicts with ${e.actor.label.split(" ")[0]}’s ${new Date(e.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} email`, memory: true, dot: "info", restored_from: e.id,
+    detail: { heading: "Previous version restored", eyebrow: "Version restored", when: at, accepted_by: "Maya Rao", triggered_by: "Restored from Timeline", changes: (e.detail.changes || []).map((c) => ({ category: c.category, before: c.after, after: c.before })), restorable: false, undo_of: e.id } };
+  S.events.unshift(ne);
+  return { ok: true, event: ne, updated: (e.detail.changes || []).length };
 });
-on("POST", "/api/v2/w/:wid/timeline/export", ({ body }) => ({ ok: true, format: body.format || "csv", rows: S.events.length, url: "#", email: S.me.email }));
+on("POST", "/api/v2/w/:wid/timeline/:eid/undo-restore", ({ p }) => {
+  const e = S.events.find((x) => x.id === p.eid);
+  if (e?.restored_from === "ev4") { const m = byId("de1"); m.title = "Homepage direction is editorial"; m.changed_at = new Date().toISOString(); }
+  S.events = S.events.filter((x) => x.id !== p.eid);
+  return { ok: true };
+});
+on("POST", "/api/v2/w/:wid/timeline/export", ({ body }) => ({ ok: true, format: body.format || "csv", rows: S.events.length, url: null, email: S.me.email }));
 
 /* sources */
 on("GET", "/api/v2/w/:wid/sources", ({ p }) => ({ sources: (dataFor(p.wid).sources || []).map(sourceLite), connectors: S.connectors }));
