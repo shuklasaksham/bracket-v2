@@ -108,7 +108,8 @@ export const v2 = {
   members: (wid) => g(`${W(wid)}/members`),
   invite: (wid, emails, role, message) => p(`${W(wid)}/members/invite`, { emails, role, message }),
   updateMember: (wid, mid, body) => pa(`${W(wid)}/members/${mid}`, body),
-  removeMember: (wid, mid) => del(`${W(wid)}/members/${mid}`),
+  removeMember: (wid, mid, reassign_to) => del(`${W(wid)}/members/${mid}`, null, { reassign_to }),
+  memberCommitments: (wid, mid) => g(`${W(wid)}/members/${mid}/commitments`),
   resendInvite: (wid, mid) => p(`${W(wid)}/members/${mid}/resend`),
   invite_: (token) => g(`/v2/invites/${token}`),
   acceptInvite: (token) => p(`/v2/invites/${token}/accept`),
@@ -126,7 +127,8 @@ export const v2 = {
 
   /* billing */
   billing: () => g("/v2/billing"),
-  checkout: (plan, currency) => p("/v2/billing/checkout", { plan, currency }),
+  checkout: (plan, currency, card, exp) => p("/v2/billing/checkout", { plan, currency, card, exp }),
+  updateBilling: (body) => pa("/v2/billing", body),
   changePlan: (plan) => p("/v2/billing/change", { plan }),
   cancel: (reason, note) => p("/v2/billing/cancel", { reason, note }),
   resume: () => p("/v2/billing/resume"),

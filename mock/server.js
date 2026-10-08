@@ -45,10 +45,10 @@ function applyScenario(name) {
   loggedIn = name !== "signed_out";
   sessionExpired = name === "session_expired";
   const ws = S.workspaces[0];
-  if (name === "trial") Object.assign(S.billing, { plan: "trial", status: "trialing", trial_ends_at: d(3), renews_on: null, card: null, label: "Free trial", amount: 0 });
-  if (name === "trial_ended") Object.assign(S.billing, { plan: "trial", status: "expired", trial_ends_at: d(-1), renews_on: null, card: null, label: "Free trial", amount: 0 });
-  if (name === "payment_failed") Object.assign(S.billing, { status: "past_due", retry: { attempt: 2, of: 3, next_at: d(2), grace_ends_at: d(5) } });
-  if (name === "canceled") Object.assign(S.billing, { status: "canceled", ends_on: d(10), renews_on: null });
+  if (name === "trial") Object.assign(S.billing, { plan: "trial", status: "trialing", trial_ends_at: d(9), renews_on: null, card: null, label: "Trial", amount: 0, invoices: [], workspaces: { used: 1, limit: 10 } });
+  if (name === "trial_ended") Object.assign(S.billing, { plan: "trial", status: "expired", trial_ends_at: d(-1), renews_on: null, card: null, label: "Trial", amount: 0, invoices: [] });
+  if (name === "payment_failed") Object.assign(S.billing, { status: "past_due", retry: { attempt: 1, of: 3, last_at: d(0), next_at: d(2), grace_ends_at: d(7) } });
+  if (name === "canceled") Object.assign(S.billing, { status: "canceled", ends_on: d(39) });
   if (name === "expiring") Object.assign(ws, { status: "expiring", expires_at: d(5) }) && Object.assign(S.billing, { plan: "project", label: "Per project", amount: 199, interval: "project" });
   if (name === "archived") Object.assign(ws, { status: "archived", archived_at: d(-1) });
   if (name === "deletion_scheduled") Object.assign(ws, { status: "deletion_scheduled", deletion_at: d(30) });
@@ -164,17 +164,28 @@ on("POST", "/api/v2/invites/:token/accept", () => ({ ok: true, workspace_id: "p1
 
 /* account */
 on("GET", "/api/v2/me/sessions", () => ({ sessions: S.sessions }));
-on("POST", "/api/v2/me/sessions/sign-out-others", () => { S.sessions = S.sessions.filter((s) => s.current); return { ok: true, signed_out: 2 }; });
+on("POST", "/api/v2/me/sessions/sign-out-others", () => { const others = S.sessions.filter((s) => !s.current); S.sessions = S.sessions.filter((s) => s.current); return { ok: true, signed_out: others.length, devices: others.map((s) => s.device) }; });
 on("GET", "/api/v2/me/notifications", () => S.notifications);
-on("PATCH", "/api/v2/me/notifications", ({ body }) => Object.assign(S.notifications, body));
+on("PATCH", "/api/v2/me/notifications", ({ body }) => {
+  if (body.event) { const e = S.notifications.events.find((x) => x.key === body.event); if (e) e[body.channel] = !!body.value; }
+  if (body.digest) Object.assign(S.notifications.digest, body.digest);
+  return S.notifications;
+});
 on("POST", "/api/v2/me/export", () => ({ ok: true, email: S.me.email, ready_in: "about 10 minutes" }));
-on("DELETE", "/api/v2/me", ({ body }) => { if ((body.confirm || "").toLowerCase() !== "delete my account") throw new HttpError(400, "Type “delete my account” to confirm."); loggedIn = false; return { ok: true, recover_until: d(30) }; });
+on("DELETE", "/api/v2/me", ({ body }) => { if ((body.confirm || "") !== "DELETE") throw new HttpError(400, "Type DELETE to confirm."); loggedIn = false; return { ok: true, deletes_on: d(7) }; });
 on("POST", "/api/v2/contact", ({ body }) => { if (!body.email || !body.message) throw new HttpError(400, "Add your email and a message."); return { ok: true }; });
 
 /* billing */
 on("GET", "/api/v2/billing", () => S.billing);
-on("POST", "/api/v2/billing/checkout", ({ body }) => { Object.assign(S.billing, { plan: body.plan, status: "active", label: body.plan === "monthly" ? "Monthly" : "Per project", amount: body.plan === "monthly" ? 999 : 199, interval: body.plan === "monthly" ? "month" : "project", renews_on: d(30), trial_ends_at: null, card: { brand: "Visa", last4: "4242", exp: "08/28" } }); delete S.billing.retry; return { ok: true, billing: S.billing }; });
-on("POST", "/api/v2/billing/change", ({ body }) => { Object.assign(S.billing, { plan: body.plan, label: body.plan === "monthly" ? "Monthly" : "Per project", amount: body.plan === "monthly" ? 999 : 199, interval: body.plan === "monthly" ? "month" : "project" }); return { ok: true, billing: S.billing }; });
+on("POST", "/api/v2/billing/checkout", ({ body }) => {
+  if (body.card && String(body.card).replace(/\s/g, "").endsWith("0002")) throw new HttpError(402, "Your card was declined. Try another card.", { code: "card_declined" });
+  const cur = body.currency || S.billing.currency; const price = S.billing.prices[body.plan][cur];
+  const firstCharge = S.billing.status === "trialing" ? S.billing.trial_ends_at : new Date().toISOString();
+  Object.assign(S.billing, { plan: body.plan, status: "active", currency: cur, label: body.plan === "monthly" ? "Monthly" : "Per project", amount: price, interval: body.plan === "monthly" ? "month" : "project", renews_on: body.plan === "monthly" ? d(39) : null, trial_ends_at: null, first_charge_at: firstCharge, card: { brand: "Visa", last4: String(body.card || "4242").replace(/\s/g, "").slice(-4), exp: body.exp || "08/28", email: S.me.email } });
+  delete S.billing.retry; return { ok: true, billing: S.billing };
+});
+on("PATCH", "/api/v2/billing", ({ body }) => { if (body.currency) { S.billing.currency = body.currency; S.billing.amount = S.billing.plan && S.billing.prices[S.billing.plan] ? S.billing.prices[S.billing.plan][body.currency] : 0; } return S.billing; });
+on("POST", "/api/v2/billing/change", ({ body }) => { if (body.plan === S.billing.plan) return { ok: true, billing: S.billing }; S.billing.pending_change = { plan: body.plan, on: S.billing.renews_on }; return { ok: true, billing: S.billing }; });
 on("POST", "/api/v2/billing/cancel", ({ body }) => { Object.assign(S.billing, { status: "canceled", ends_on: S.billing.renews_on || d(10), cancel_reason: body.reason }); S.billing.renews_on = null; return { ok: true, billing: S.billing }; });
 on("POST", "/api/v2/billing/resume", () => { Object.assign(S.billing, { status: "active", renews_on: S.billing.ends_on || d(10) }); delete S.billing.ends_on; return { ok: true, billing: S.billing }; });
 on("POST", "/api/v2/billing/retry", () => { S.billing.status = "active"; delete S.billing.retry; return { ok: true, billing: S.billing }; });
@@ -196,7 +207,7 @@ on("POST", "/api/v2/w/:wid/unarchive", ({ p }) => {
   w.status = "active"; delete w.archived_at; return wsSummary(w);
 });
 on("POST", "/api/v2/w/:wid/leave", ({ p }) => { S.workspaces = S.workspaces.filter((w) => w.id !== p.wid); return { ok: true }; });
-on("POST", "/api/v2/w/:wid/delete", ({ p, body }) => { const w = ws(p.wid); if ((body.confirm || "") !== w.name) throw new HttpError(400, "Type the workspace name to confirm."); w.status = "deletion_scheduled"; w.deletion_at = d(30); return wsSummary(w); });
+on("POST", "/api/v2/w/:wid/delete", ({ p, body }) => { const w = ws(p.wid); if ((body.confirm || "") !== w.name) throw new HttpError(400, "Type the workspace name to confirm."); w.status = "deletion_scheduled"; w.deletion_at = d(7); const next = S.workspaces.find((x) => x.id !== w.id && x.status === "active"); return { ...wsSummary(w), next_workspace: next?.id || null }; });
 on("POST", "/api/v2/w/:wid/restore", ({ p }) => { const w = ws(p.wid); w.status = "active"; delete w.deletion_at; return wsSummary(w); });
 on("POST", "/api/v2/w/:wid/export", () => ({ ok: true, email: S.me.email, formats: ["md", "pdf", "json"] }));
 on("GET", "/api/v2/w/:wid/settings", () => S.workspaceSettings);
@@ -696,7 +707,8 @@ on("POST", "/api/v2/w/:wid/members/invite", ({ p, body }) => {
   return { ok: true, invited: emails.length, outside_domain: emails.filter((e) => !e.endsWith("@northlight.studio")) };
 });
 on("PATCH", "/api/v2/w/:wid/members/:mid", ({ p, body }) => { const m = S.members.find((x) => x.id === p.mid); Object.assign(m, body); return m; });
-on("DELETE", "/api/v2/w/:wid/members/:mid", ({ p }) => { S.members = S.members.filter((x) => x.id !== p.mid); return { ok: true }; });
+on("DELETE", "/api/v2/w/:wid/members/:mid", ({ p, body }) => { const m = S.members.find((x) => x.id === p.mid); S.members = S.members.filter((x) => x.id !== p.mid); S.events.unshift({ id: uid("ev"), at: new Date().toISOString(), kind: "member_removed", title: `${m?.name || m?.email} removed from the workspace`, actor: { provider: "manual", label: "Maya Rao" }, meta: body?.reassign_to ? `Open commitments reassigned to ${body.reassign_to}` : "", system: true }); return { ok: true }; });
+on("GET", "/api/v2/w/:wid/members/:mid/commitments", ({ p }) => { const m = S.members.find((x) => x.id === p.mid); const name = m?.name; return { items: name === "Lena Torres" ? [{ id: "lx1", title: "Homepage copy draft by Oct 12" }] : [] }; });
 on("POST", "/api/v2/w/:wid/members/:mid/resend", () => ({ ok: true }));
 
 /* updates (bell) */

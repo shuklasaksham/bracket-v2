@@ -30,7 +30,7 @@ function build() {
   const me = {
     user_id: "u1", email: "maya@northlight.studio", name: "Maya Rao", designation: "Design lead",
     company: "Northlight Studio", picture: null, plan: "monthly", plan_since: d(-20), has_password: true,
-    is_admin: false, is_guest: false, timezone: "Asia/Kolkata", created_at: d(-60),
+    is_admin: false, is_guest: false, timezone: "Asia/Kolkata (GMT+5:30)", password_changed_at: d(-57), created_at: d(-60),
   };
 
   /* ───── People (workspace-level, also members of memory category "people") ───── */
@@ -415,32 +415,36 @@ function build() {
   ];
 
   const billing = {
-    plan: "monthly", status: "active", currency: "inr", amount: 999, interval: "month", label: "Monthly",
-    since: d(-20), renews_on: d(10), trial_ends_at: null, card: { brand: "Visa", last4: "4242", exp: "08/28" },
+    plan: "monthly", status: "active", currency: "usd", label: "Monthly", interval: "month",
+    prices: { monthly: { usd: 12, inr: 999 }, project: { usd: 2, inr: 199 } },
+    amount: 12, since: d(-22), renews_on: d(39), trial_ends_at: null, card: { brand: "Visa", last4: "4242", exp: "08/28", email: "maya@northlight.studio" },
     workspaces: { used: 3, limit: 10 },
     invoices: [
-      { id: "in_3", at: d(-20), amount: 999, currency: "inr", status: "paid", label: "Monthly · Sep" },
-      { id: "in_2", at: d(-50), amount: 199, currency: "inr", status: "paid", label: "Per project · Atlas mobile app" },
+      { id: "in_2", at: d(-22), amount: 12, currency: "usd", status: "paid", label: "Monthly plan" },
+      { id: "in_1", at: d(-53), amount: 12, currency: "usd", status: "paid", label: "Monthly plan" },
     ],
   };
 
   const notifications = {
-    attention: { email: true, push: true, in_app: true },
-    changes: { email: false, push: false, in_app: true, digest: "daily" },
-    system: { email: true, push: false, in_app: true },
-    digest_time: "09:00", quiet_hours: { enabled: true, from: "20:00", to: "08:00" }, muted_workspaces: [],
+    events: [
+      { key: "needs_review", label: "Something needs review", help: "Scope changes, conflicts, new requirements", in_app: true, email: true, push: true },
+      { key: "commitment_due", label: "Commitment approaching", help: "24h before a due date", in_app: true, email: true, push: true },
+      { key: "source_attention", label: "Source needs attention", help: "Disconnected, expired, failed", in_app: true, email: true, push: false },
+      { key: "memory_updated", label: "Memory updated", help: "Accepted changes by teammates", in_app: true, email: false, push: false },
+      { key: "activity", label: "New activity", help: "Messages read, notes processed", in_app: false, email: false, push: false },
+    ],
+    digest: { enabled: true, time: "9:00", days: "Weekdays" },
   };
 
   const sessions = [
-    { id: "se1", device: "Chrome on Windows", location: "Bengaluru, IN", last_active: mins(0), current: true },
-    { id: "se2", device: "Safari on iPhone", location: "Bengaluru, IN", last_active: d(-1, "21:10") },
-    { id: "se3", device: "Chrome on macOS", location: "Mumbai, IN", last_active: d(-6, "10:00") },
+    { id: "se1", device: "This Mac · Chrome", location: "Bengaluru, IN", last_active: mins(0), current: true },
+    { id: "se2", device: "iPhone", location: "Bengaluru, IN", last_active: d(-1, "21:10") },
   ];
 
   return {
     me, people, sources, connectors, memory: M, categories, reviews, attention, conflicts, threads, conversationTotal,
     events, files, members, askHistory, updates, workspaces, billing, notifications, sessions,
-    workspaceSettings: { review_rule: "always", auto_accept_high: false, retention_days: 30 },
+    workspaceSettings: { work: "Website redesign to improve trust and conversions", auto_add_high: true, always_review_sensitive: true },
   };
 }
 

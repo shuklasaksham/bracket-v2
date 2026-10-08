@@ -61,12 +61,9 @@ export default function WorkspaceBanner() {
   } else if (workspace?.role === "viewer") {
     b = { tone: "neutral", icon: Eye, title: "You have view access", body: "You can read memory and ask questions. Ask Maya Rao to make you an Editor to accept changes or send replies.", cta: "Request edit access",
       onClick: () => toast.success("Request sent to Maya Rao", { description: "You’ll get an email when your role changes." }) };
-  } else if (billing?.status === "trialing" && billing.trial_ends_at) {
+  } else if (billing?.status === "trialing" && billing.trial_ends_at && daysUntil(billing.trial_ends_at) <= 3) {
     const n = daysUntil(billing.trial_ends_at);
     b = { tone: "info", icon: Clock, title: `Your free trial ends in ${n} day${n === 1 ? "" : "s"}`, body: "Choose a plan to keep syncing. Nothing is deleted if you don’t.", cta: "Choose a plan", onClick: () => toBilling("?choose=1") };
-  } else if (billing?.status === "canceled" && billing.ends_on) {
-    b = { tone: "neutral", icon: Info, title: `Your subscription ends on ${fmt(billing.ends_on)}`, body: "After that, workspaces become read-only. Nothing is deleted.", cta: "Resume subscription",
-      onClick: async () => { setBusy(true); try { await v2.resume(); await reload(); toast.success("Subscription resumed"); } finally { setBusy(false); } } };
   }
 
   return (
