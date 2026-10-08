@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Info, FileText, Paperclip, Upload, Loader2, Unlink, Mic } from "lucide-react";
+import { Search, Info, FileText, Paperclip, Upload, Loader2, Unlink, Mic, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { v2 } from "../lib/api2";
 import { refreshAll } from "../lib/workspace";
 import { useResource } from "../lib/data";
 import { Badge, Button, Checkbox, Input, SourceMark } from "../ui/primitives";
-import { Dialog, Menu, MenuContent, MenuItem, MenuTrigger } from "../ui/overlays";
+import { Dialog, FullScreen, Menu, MenuContent, MenuItem, MenuTrigger, Sheet } from "../ui/overlays";
+import { useIsMobile } from "../lib/useMedia";
 import { AnimatePresence, motion, t as T } from "../ui/motion";
 import { cn } from "../../lib/utils";
 
@@ -58,6 +59,30 @@ const TILES = [
 ];
 export function AddSourceDialog({ open, onOpenChange, sources, onPick }) {
   const connected = new Set((sources || []).filter((s) => s.status !== "disconnected").map((s) => s.provider));
+  const mobile = useIsMobile();
+  if (mobile) {
+    const order = ["slack", "gmail", "notes", "files", "figma", "github", "notion", "jira", "meetings"];
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange} title="Add a source" description="Bracket only reads what you choose in the next step.">
+        <ul className="overflow-hidden rounded-lg border border-line divide-y divide-line-subtle">
+          {order.map((k) => TILES.find((t) => t.key === k)).map((t) => {
+            const isConnected = connected.has(t.key) && t.key !== "slack" && t.key !== "notes";
+            return (
+              <li key={t.key}>
+                <button disabled={t.soon || isConnected} onClick={() => onPick(t.key)} className={cn("flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left active:bg-hover", t.soon && "opacity-55")}>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                    {t.icon ? <t.icon size={16} className="text-fg-secondary" /> : t.letter ? <span className="flex h-5 w-5 items-center justify-center rounded bg-white/[0.08] text-[10px] font-semibold text-fg-secondary">{t.letter}</span> : <SourceMark provider={t.key} size={16} />}
+                  </span>
+                  <span className="min-w-0 flex-1"><span className="block text-body-m text-fg">{t.label}</span><span className="block text-body-s text-fg-tertiary">{isConnected ? "Connected" : t.sub === "Email threads" ? "Threads" : t.sub}</span></span>
+                  {isConnected ? <Badge tone="success" dot>Connected</Badge> : !t.soon && <ChevronRight size={16} className="text-fg-tertiary" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </Sheet>
+    );
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="Add a source" description="Bracket only reads what you choose in the next step." size="l">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -89,6 +114,7 @@ export function ChooseItemsDialog({ open, onOpenChange, wid, sid, provider, onDo
   const [q, setQ] = useState("");
   const [range, setRange] = useState("Last 90 days");
   const [busy, setBusy] = useState(false);
+  const mobile = useIsMobile();
   useEffect(() => { if (data) setSel(new Set(data.items.filter((i) => i.suggested || i.connected).map((i) => i.id))); }, [data]);
   const channels = (data?.kind || (provider === "slack" ? "channels" : "threads")) === "channels";
   const items = (data?.items || []).filter((i) => !q || `${i.name} ${i.meta}`.toLowerCase().includes(q.toLowerCase()));
@@ -105,6 +131,26 @@ export function ChooseItemsDialog({ open, onOpenChange, wid, sid, provider, onDo
     } finally { setBusy(false); }
   };
   const count = channels ? sel.size : picked.length;
+  if (mobile && channels) {
+    return (
+      <FullScreen open={open} onOpenChange={onOpenChange} title="Add Slack"
+        footer={<><Button variant="ghost" onClick={onBack || (() => onOpenChange(false))}>Cancel</Button><Button variant="primary" loading={busy} disabled={!count} onClick={submit}>Add {count} channel{count === 1 ? "" : "s"}</Button></>}>
+        <p className="flex items-center gap-2 text-body-s text-fg-tertiary"><SourceMark provider="slack" size={14} />{data?.account || "Northlight Studio"} · signed in as Maya</p>
+        <p className="mt-4 text-body-m text-fg">Choose the channels Bracket can read. It never posts or reacts.</p>
+        <label className="mt-4 block text-body-s text-fg-secondary" htmlFor="ch-q">Search channels</label>
+        <Input id="ch-q" className="mt-2 h-11" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Channel name" />
+        <div className="mt-4 overflow-hidden rounded-lg border border-line divide-y divide-line-subtle">
+          {!data && <p className="px-4 py-4 text-[12px] text-fg-tertiary">Loading…</p>}
+          {items.map((i) => (
+            <label key={i.id} htmlFor={`pick-${i.id}`} className="flex cursor-pointer items-center gap-3 px-4 py-3">
+              <span className="min-w-0 flex-1"><span className="block text-body-m text-fg">{i.name}</span><span className="block text-body-s text-fg-tertiary">{i.meta}</span></span>
+              <Checkbox id={`pick-${i.id}`} checked={sel.has(i.id)} onChange={() => toggle(i.id)} />
+            </label>
+          ))}
+        </div>
+      </FullScreen>
+    );
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange} size="l"
       title={<span className="flex items-center gap-2"><SourceMark provider={channels ? "slack" : "gmail"} size={16} />{channels ? "Choose Slack channels" : "Add Gmail threads"}</span>}
@@ -147,7 +193,8 @@ export function ChooseItemsDialog({ open, onOpenChange, wid, sid, provider, onDo
 }
 
 /* ───────────────────────── Add note ───────────────────────── */
-export function AddNoteDialog({ open, onOpenChange, wid, onAdded }) {
+export function AddNoteDialog({ open, onOpenChange, wid, onAdded, quiet }) {
+  const mobile = useIsMobile();
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [people, setPeople] = useState([]);
@@ -165,10 +212,25 @@ export function AddNoteDialog({ open, onOpenChange, wid, onAdded }) {
       onOpenChange(false);
       refreshAll();
       onAdded?.(res);
+      if (quiet && !res.nothing_new) return;
       if (res.nothing_new) toast("Nothing new found", { description: `Bracket read “${title}” but everything in it already matches memory.` });
       else toast.success(`Bracket found ${res.found} things in “${title}” · ${res.needs_review} needs review`, { action: res.review_id ? { label: "Review", onClick: () => navigate(`/w/${wid}/review/${res.review_id}`) } : undefined, duration: 10000 });
     } catch (e) { setErr(e?.response?.data?.detail || "Couldn’t add the note"); } finally { setBusy(false); }
   };
+  if (mobile) {
+    return (
+      <FullScreen open={open} onOpenChange={onOpenChange} title="Add note"
+        footer={<><Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={text.trim().length < 3} onClick={submit}>Add to Bracket</Button></>}>
+        <label className="block text-body-s text-fg-secondary">Title<Input className="mt-2 h-11" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+        <label className="mt-4 block text-body-s text-fg-secondary">Note
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} placeholder="Paste meeting notes, a call transcript or a brainstorm…"
+            className="mt-2 w-full rounded-md border border-line-control bg-app px-3 py-3 text-body-m text-fg placeholder:text-fg-tertiary outline-none transition-colors duration-fast focus:border-fg" />
+        </label>
+        <p className="mt-2 text-body-s text-fg-tertiary">Paste notes or a transcript. Bracket reads it once and links what it learns to this note.</p>
+        <AnimatePresence>{err && <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 text-body-s text-danger">{err}</motion.p>}</AnimatePresence>
+      </FullScreen>
+    );
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange} size="l" title={<span className="flex items-center gap-2"><FileText size={16} /> Add note</span>}
       footer={<><Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button><Button variant="primary" loading={busy} disabled={text.trim().length < 3} onClick={submit}>Add to Bracket</Button></>}>
@@ -190,7 +252,10 @@ export function AddNoteDialog({ open, onOpenChange, wid, onAdded }) {
 }
 
 /* ───────────────────────── Radio-choice confirm (disconnect / stop reading / delete) ───────────────────────── */
-export function ChoiceConfirm({ open, onOpenChange, title, intro, options, cta, onConfirm, danger = true }) {
+export function ChoiceConfirm({ open, onOpenChange, title, intro, options: desktopOptions, cta, onConfirm, danger = true, mobileIntro, mobileOptions }) {
+  const mobile = useIsMobile();
+  const options = (mobile && mobileOptions) || desktopOptions;
+  if (mobile && mobileIntro) intro = mobileIntro;
   const [v, setV] = useState(options[0]?.value);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (open) setV(options[0]?.value); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps

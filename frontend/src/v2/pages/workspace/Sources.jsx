@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, RefreshCw, MoreHorizontal, FileText, Upload, Lock, Mic, ChevronRight } from "lucide-react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Plus, RefreshCw, MoreHorizontal, FileText, Upload, Lock, Mic, ChevronRight, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useWorkspace } from "../../lib/workspace";
@@ -9,7 +9,8 @@ import { useResource } from "../../lib/data";
 import { useIsMobile } from "../../lib/useMedia";
 import { Badge, Button, IconButton, SourceMark } from "../../ui/primitives";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/overlays";
-import { Stagger, StaggerItem, motion, t as T } from "../../ui/motion";
+import { AnimatePresence, Stagger, StaggerItem, motion, t as T } from "../../ui/motion";
+import { MobileSubHeader } from "../../shell/AppShell";
 import { AddNoteDialog, AddSourceDialog, ChooseItemsDialog, SourceStatus, UploadDialog, num } from "../../features/sources";
 import { FileStatus } from "./Files";
 import { cn } from "../../../lib/utils";
@@ -28,6 +29,8 @@ export default function Sources() {
   const [choose, setChoose] = useState(null);
   const [note, setNote] = useState(false);
   const [upload, setUpload] = useState(false);
+  const [noteResult, setNoteResult] = useState(null);
+  const location = useLocation();
 
   useEffect(() => {
     const add = params.get("add");
@@ -54,6 +57,72 @@ export default function Sources() {
   const reconnect = (s) => navigate(`${base}/sources/${s.id}?reconnect=1`);
 
   const sources = data?.sources || [];
+  /* Mobile — Figma › Sources — Mobile 390 (43:4601) + Note added (147:755) + After disconnecting Gmail (147:813). */
+  if (mobile) {
+    const live = sources.filter((s) => s.status !== "disconnected");
+    const disc = location.state?.disconnected;
+    return (
+      <div className="flex h-full flex-col">
+        <MobileSubHeader title="Sources" onBack={() => navigate(base)}
+          actions={(
+            <Menu>
+              <MenuTrigger asChild><IconButton icon={MoreHorizontal} label="More" size="l" /></MenuTrigger>
+              <MenuContent align="end">
+                <MenuItem icon={Upload} onSelect={() => navigate(`${base}/files`)}>Files</MenuItem>
+                <MenuItem icon={FileText} disabled={!canEdit} onSelect={() => setNote(true)}>Add note</MenuItem>
+                <MenuItem icon={Plus} disabled={!canEdit} onSelect={() => setPicker(true)}>Add source</MenuItem>
+              </MenuContent>
+            </Menu>
+          )} />
+        <div className="scroll-pane min-h-0 flex-1 pb-6">
+          <AnimatePresence initial={false}>
+            {noteResult ? (
+              <motion.div key="note" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={T.base} className="overflow-hidden">
+                <div role="status" className="flex items-center gap-3 rounded-lg border border-success/70 bg-success-bg px-4 py-3">
+                  <CheckCircle2 size={16} className="shrink-0 text-success" />
+                  <div className="min-w-0 flex-1"><p className="text-body-m text-fg">Note added · Bracket learned {noteResult.found} things</p>{noteResult.needs_review > 0 && <p className="text-body-s text-fg-secondary">{noteResult.needs_review} update{noteResult.needs_review === 1 ? "" : "s"} need{noteResult.needs_review === 1 ? "s" : ""} your review{noteResult.summary ? `: ${noteResult.summary}` : "."}</p>}</div>
+                  {noteResult.review_id && <Button size="m" className="shrink-0" onClick={() => navigate(`${base}/review/${noteResult.review_id}`)}>Review</Button>}
+                </div>
+              </motion.div>
+            ) : disc ? (
+              <motion.div key="disc" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={T.base} className="overflow-hidden">
+                <div role="status" className="flex items-center gap-3 rounded-lg border border-line-strong bg-app px-4 py-3">
+                  <Info size={16} className="shrink-0 text-fg-secondary" />
+                  <div className="min-w-0 flex-1"><p className="text-body-m text-fg">{disc.label} disconnected</p><p className="text-body-s text-fg-secondary">{disc.keep ? `${disc.kept} memories kept, marked “source disconnected”. Reconnect anytime.` : `${disc.removed} memories removed. Recorded in Timeline.`}</p></div>
+                  <Button size="m" className="shrink-0" disabled={!canEdit} onClick={() => navigate(`${base}/sources/${disc.sid}?reconnect=1`)}>Reconnect</Button>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          <Stagger as="ul" className="mt-4 border-y border-line-subtle divide-y divide-line-subtle">
+            {live.map((s) => (
+              <StaggerItem as="li" key={s.id}>
+                <Link to={`${base}/sources/${s.id}`} className="flex min-h-[60px] items-center gap-3 px-4 py-3 active:bg-hover">
+                  {s.provider === "notes" ? <FileText size={18} className="shrink-0 text-fg-secondary" /> : <SourceMark provider={s.provider} size={18} />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-body-m text-fg">{s.label}</span>
+                    <span className="block">{s.provider === "notes" ? <span className="inline-flex items-center gap-2 text-[12px] text-fg-secondary"><span className="h-1.5 w-1.5 rounded-full bg-success" />{s.items} notes</span> : s.status === "syncing" && s.progress ? <span className="inline-flex items-center gap-2 text-[12px] text-fg-secondary"><Loader2 size={14} className="animate-spin text-info" />Syncing… {Math.round((s.progress.done / s.progress.total) * 100)}%</span> : <SourceStatus s={s} short />}</span>
+                  </span>
+                  <ChevronRight size={16} className="text-fg-tertiary" />
+                </Link>
+              </StaggerItem>
+            ))}
+          </Stagger>
+          {data && !live.length && <p className="px-4 py-6 text-[12px] text-fg-tertiary">No sources yet. Add Gmail or Slack, or paste a note.</p>}
+          <div className="flex gap-3 px-4 pt-4">
+            <Button size="l" variant="secondary" icon={FileText} className="flex-1" disabled={!canEdit} onClick={() => setNote(true)}>Add note</Button>
+            <Button size="l" variant="primary" icon={Plus} className="flex-1" disabled={!canEdit} onClick={() => setPicker(true)}>Add source</Button>
+          </div>
+          <p className="mt-4 flex gap-3 px-4 text-body-s text-fg-tertiary"><Lock size={16} className="shrink-0" /> Bracket reads only what you choose and never sends without your approval.</p>
+        </div>
+        <AddSourceDialog open={picker} onOpenChange={setPicker} sources={sources} onPick={pick} />
+        <ChooseItemsDialog open={!!choose} onOpenChange={(o) => !o && setChoose(null)} wid={projectId} provider={choose} onDone={() => { setChoose(null); reload(); }} onBack={() => { setChoose(null); setPicker(true); }} />
+        <AddNoteDialog open={note} onOpenChange={setNote} wid={projectId} quiet onAdded={(r) => { setNoteResult(r?.nothing_new ? null : r); reload(); }} />
+        <UploadDialog open={upload} onOpenChange={(o) => { setUpload(o); if (!o) reload(); }} wid={projectId} />
+      </div>
+    );
+  }
+
   return (
     <div className="scroll-pane h-full">
       <div className="mx-auto grid max-w-[1600px] gap-8 px-4 pt-4 pb-12 md:px-8 md:pt-6 xl:grid-cols-[minmax(0,1fr)_280px]">

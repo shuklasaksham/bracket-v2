@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Upload, FileText, X, ExternalLink, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
+import { Upload, FileText, X, ExternalLink, MoreHorizontal, RefreshCw, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useWorkspace, refreshAll } from "../../lib/workspace";
@@ -45,6 +45,7 @@ export default function Files() {
   const [dropped, setDropped] = useState(null);
   const [drag, setDrag] = useState(false);
   const [del, setDel] = useState(null);
+  const [uploading, setUploading] = useState([]);
   const fileRef = useRef(null);
 
   useEffect(() => { if (params.get("upload") === "1") { setUpload(true); setParams({}, { replace: true }); } }, [params, setParams]);
@@ -60,7 +61,76 @@ export default function Files() {
   const onDrop = (e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length && canEdit) { setDropped(e.dataTransfer.files); setUpload(true); } };
   const askDelete = async (id) => { const f = await v2.file(projectId, id); setDel(f); };
 
-  if (mobile && fid) return <FileDetail wid={projectId} fid={fid} onClose={close} mobile canEdit={canEdit} onDelete={askDelete} />;
+  const confirmDelete = (
+      <ChoiceConfirm open={!!del} onOpenChange={(o) => !o && setDel(null)} title="Delete this file?" cta="Delete file"
+        mobileIntro={del && `${del.name} is removed from Bracket. Memories only this file supports are removed too.`}
+        mobileOptions={del?.impact.total ? [{ value: true, label: "Keep what Bracket learned", help: `${del.impact.total} memories stay, marked “file deleted”.` }, { value: false, label: "Remove its memories", help: `${del.impact.only_here} removed; ${del.impact.supported_elsewhere} supported elsewhere stay.` }] : undefined}
+        intro={del && (del.impact.total ? `${del.name} contributed ${del.impact.total} memories. ${del.impact.supported_elsewhere} are also supported by email or notes.` : `${del.name} didn’t contribute any memories.`)}
+        options={del?.impact.total ? [
+          { value: true, label: "Delete the file, keep memories", help: `The ${del.impact.only_here} memories only it supported are marked “source removed”.` },
+          { value: false, label: `Delete the file and those ${del.impact.only_here} memories`, help: "Recorded in Timeline · restorable for 30 days." },
+        ] : [{ value: true, label: "Delete the file", help: "Nothing in memory changes." }]}
+        onConfirm={async (keep) => { await v2.deleteFile(projectId, del.id, keep); setDel(null); refreshAll(); reload(); if (fid) close(); toast(`Deleted ${del.name}`); }} />
+  );
+  /* Mobile — Figma › Files — Mobile 390 (112:5941), Uploading (147:1299), File detail (147:1205), Delete file (147:1349). */
+  if (mobile) {
+    const meta = (f) => (f.status === "in_memory" ? `${f.contributed?.memories || 0} memories` : f.status === "reading" ? "Reading…" : f.status === "not_supported" ? "Add a transcript instead" : contributed(f));
+    const pick = (list) => {
+      [...list].forEach((file) => {
+        const key = `${file.name}-${Date.now()}`;
+        setUploading((u) => [{ key, name: file.name, size: file.size, pct: 0 }, ...u]);
+        const tick = setInterval(() => setUploading((u) => u.map((x) => (x.key === key ? { ...x, pct: Math.min(96, x.pct + 9) } : x))), 120);
+        v2.uploadFile(projectId, { name: file.name, size: file.size }).finally(() => {
+          clearInterval(tick);
+          setUploading((u) => u.map((x) => (x.key === key ? { ...x, pct: 100 } : x)));
+          setTimeout(() => { setUploading((u) => u.filter((x) => x.key !== key)); reload(); refreshAll(); }, 400);
+        });
+      });
+    };
+    const mb = (n) => `${(n / 1e6).toFixed(1)}`;
+    return (
+      <div className="flex h-full flex-col">
+        {fid ? <FileDetail wid={projectId} fid={fid} onClose={close} mobile canEdit={canEdit} onDelete={askDelete} /> : (
+          <>
+            <MobileSubHeader title="Files" onBack={() => navigate(`${base}/sources`)} />
+            <div className="scroll-pane min-h-0 flex-1 pb-6">
+              <div className="px-4 pt-4">
+                <Button size="l" className="h-12 w-full" icon={Upload} disabled={!canEdit} onClick={() => fileRef.current?.click()}>Upload a file</Button>
+                <input ref={fileRef} type="file" multiple hidden onChange={(e) => { if (e.target.files?.length) pick(e.target.files); e.target.value = ""; }} />
+              </div>
+              <AnimatePresence initial={false}>
+                {uploading.map((u) => (
+                  <motion.div key={u.key} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={T.base} className="overflow-hidden px-0 pt-3">
+                    <div className="border-y border-line-subtle bg-surface px-4 py-3">
+                      <p className="flex items-center gap-3 text-body-m text-fg"><Upload size={16} className="text-fg-secondary" /><span className="min-w-0 flex-1 truncate">{u.name}</span><span className="font-mono text-[12px] text-fg-secondary">{u.pct}%</span></p>
+                      <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/10"><motion.div className="h-full rounded-full bg-fg" animate={{ width: `${u.pct}%` }} transition={{ duration: 0.12 }} /></div>
+                      <p className="mt-2 text-body-s text-fg-tertiary">Uploading · {mb((u.size * u.pct) / 100)} of {mb(u.size)} MB · Bracket reads it after upload</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {!data ? <div className="space-y-3 p-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div> : (
+                <Stagger as="ul" className="mt-3 border-t border-line-subtle">
+                  {files.map((f) => (
+                    <StaggerItem as="li" key={f.id} className="border-b border-line-subtle">
+                      <button onClick={() => open(f.id)} className="flex min-h-[68px] w-full items-center gap-3 px-4 py-3 text-left active:bg-hover">
+                        <FileText size={16} className="shrink-0 text-fg-secondary" />
+                        <span className="min-w-0 flex-1"><span className="block truncate text-body-s text-fg">{f.name}</span><span className="block text-body-s text-fg-tertiary">{meta(f)}</span></span>
+                        <FileStatus f={f} />
+                      </button>
+                    </StaggerItem>
+                  ))}
+                  {!files.length && <li className="px-4 py-6 text-[12px] text-fg-tertiary">No files yet. Upload a proposal, SOW or contract and Bracket will use it as context.</li>}
+                </Stagger>
+              )}
+            </div>
+          </>
+        )}
+        {confirmDelete}
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex h-full" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={onDrop}>
@@ -131,13 +201,7 @@ export default function Files() {
         )}
       </AnimatePresence>
       <UploadDialog open={upload} onOpenChange={(o) => { setUpload(o); if (!o) { setDropped(null); reload(); } }} wid={projectId} initialFiles={dropped} />
-      <ChoiceConfirm open={!!del} onOpenChange={(o) => !o && setDel(null)} title="Delete this file?" cta="Delete file"
-        intro={del && (del.impact.total ? `${del.name} contributed ${del.impact.total} memories. ${del.impact.supported_elsewhere} are also supported by email or notes.` : `${del.name} didn’t contribute any memories.`)}
-        options={del?.impact.total ? [
-          { value: true, label: "Delete the file, keep memories", help: `The ${del.impact.only_here} memories only it supported are marked “source removed”.` },
-          { value: false, label: `Delete the file and those ${del.impact.only_here} memories`, help: "Recorded in Timeline · restorable for 30 days." },
-        ] : [{ value: true, label: "Delete the file", help: "Nothing in memory changes." }]}
-        onConfirm={async (keep) => { await v2.deleteFile(projectId, del.id, keep); setDel(null); refreshAll(); reload(); if (fid) close(); toast(`Deleted ${del.name}`); }} />
+      {confirmDelete}
     </div>
   );
 }
@@ -156,6 +220,43 @@ function FileDetail({ wid, fid, onClose, mobile, canEdit, onDelete }) {
           <IconButton icon={X} label="Close (Esc)" onClick={onClose} />
         </div>
       )}
+      {mobile ? (
+        <>
+          <div className="scroll-pane min-h-0 flex-1 px-4 py-4">
+            {!f ? <Skeleton className="h-32 w-full rounded-lg" /> : (
+              <motion.div key={f.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={T.base}>
+                <div className="flex items-start gap-3">
+                  <FileText size={18} className="mt-0.5 shrink-0 text-fg-secondary" />
+                  <div className="min-w-0 flex-1"><p className="break-all text-body-m text-fg">{f.name}</p><p className="text-body-s text-fg-tertiary">{(f.name.split(".").pop() || "").toUpperCase()}{f.pages ? ` · ${f.pages} pages` : ""} · uploaded by {f.added_by} · {format(new Date(f.added_at), "MMM d")}</p></div>
+                  <span className="shrink-0">{f.status === "in_memory" ? <Badge tone="success" dot>In memory</Badge> : <FileStatus f={f} />}</span>
+                </div>
+                {f.status === "in_memory" ? (
+                  <>
+                    <p className="eyebrow mt-5 mb-3">Bracket learned · {f.contributed?.memories || mems.length}</p>
+                    <ul className="overflow-hidden rounded-lg border border-line divide-y divide-line-subtle">
+                      {(all ? mems : mems.slice(0, 4)).map((m) => (
+                        <li key={m.id}>
+                          <button onClick={() => navigate(`/w/${wid}/memory?item=${m.id}`)} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-hover">
+                            <span className="min-w-0 flex-1"><span className="block text-body-m text-fg">{m.text}</span><span className="block text-body-s text-fg-tertiary">{m.category}{m.page ? ` · page ${m.page}` : ""}</span></span>
+                            <ChevronRight size={16} className="text-fg-tertiary" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {mems.length > 4 && <button onClick={() => setAll((x) => !x)} className="mt-3 text-body-s text-fg-tertiary">{all ? "Show less" : `+${mems.length - 4} more`}</button>}
+                  </>
+                ) : <p className="mt-4 text-body-s text-fg-secondary">{contributed(f)}</p>}
+              </motion.div>
+            )}
+          </div>
+          {f && (
+            <div className="flex shrink-0 gap-3 border-t border-line-subtle px-4 pt-3 pb-3 safe-bottom">
+              <Button size="l" className="flex-1" disabled={!canEdit} onClick={async () => { await v2.replaceFile(wid, f.id, {}); toast("Reading the new version…"); }}>Replace file</Button>
+              <Button size="l" variant="danger" className="flex-1" disabled={!canEdit} onClick={() => onDelete(f.id)}>Delete</Button>
+            </div>
+          )}
+        </>
+      ) : (
       <div className="scroll-pane min-h-0 flex-1 px-4 py-5 md:px-6">
         {!f ? <Skeleton className="h-32 w-full rounded-lg" /> : (
           <motion.div key={f.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={T.base} className="space-y-5">
@@ -186,6 +287,7 @@ function FileDetail({ wid, fid, onClose, mobile, canEdit, onDelete }) {
           </motion.div>
         )}
       </div>
+      )}
     </div>
   );
 }

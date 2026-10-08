@@ -1,13 +1,15 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import * as RDialog from "@radix-ui/react-dialog";
 import * as RMenu from "@radix-ui/react-dropdown-menu";
 import * as RTooltip from "@radix-ui/react-tooltip";
 import * as RPopover from "@radix-ui/react-popover";
 import { Drawer } from "vaul";
-import { X, Check } from "lucide-react";
+import { X, Check, ArrowLeft } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { IconButton } from "./primitives";
 import { useIsMobile } from "../lib/useMedia";
+import { AnimatePresence, motion, t } from "./motion";
 
 /* ───────────────────────── Dialog ─────────────────────────
    Figma: Dialog (desktop) → bottom Sheet on mobile (< 768px).
@@ -187,5 +189,30 @@ export function PopoverContent({ children, className, align = "end", ...rest }) 
         {children}
       </RPopover.Content>
     </RPopover.Portal>
+  );
+}
+
+/* ───────────────────────── Full-screen push (mobile) ─────────────────────────
+   Figma › Add note / Add Slack — Mobile 390: a pushed screen with a back arrow
+   and a sticky action bar, sliding in from the right (280ms). */
+export function FullScreen({ open, onOpenChange, title, children, footer }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}
+          className="bk fixed inset-0 z-50 flex flex-col bg-app"
+          initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={t.sheet}>
+          <header className="flex h-14 shrink-0 items-center gap-1 border-b border-line-subtle bg-app px-1">
+            <IconButton icon={ArrowLeft} label="Back" size="l" onClick={() => onOpenChange(false)} />
+            <h1 className="min-w-0 flex-1 truncate text-center text-body-m font-medium text-fg">{title}</h1>
+            <span className="w-11" />
+          </header>
+          <div className="scroll-pane min-h-0 flex-1 px-4 py-4">{children}</div>
+          {footer && <div className="flex shrink-0 gap-3 border-t border-line-subtle px-4 pt-3 pb-3 safe-bottom [&>*]:h-11 [&>*]:flex-1">{footer}</div>}
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }

@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Plus, RefreshCw, Mail, Hash, FileText, Info, CheckCircle2, Unlink } from "lucide-react";
+import { Plus, RefreshCw, Mail, Hash, FileText, Info, CheckCircle2, Unlink, MoreHorizontal, ExternalLink, History, Layers, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useWorkspace, refreshAll } from "../../lib/workspace";
 import { v2 } from "../../lib/api2";
 import { useResource } from "../../lib/data";
 import { useIsMobile } from "../../lib/useMedia";
-import { Button, Skeleton, SourceMark, Toggle } from "../../ui/primitives";
+import { Button, IconButton, Skeleton, SourceMark, Toggle } from "../../ui/primitives";
+import { Menu, MenuContent, MenuItem, MenuTrigger, Sheet } from "../../ui/overlays";
 import { AnimatePresence, Stagger, StaggerItem, motion, t as T } from "../../ui/motion";
 import { MobileSubHeader } from "../../shell/AppShell";
 import { AddNoteDialog, ChoiceConfirm, ChooseItemsDialog, OAuthRedirect, SourceStatus, num } from "../../features/sources";
@@ -32,6 +33,7 @@ export default function SourceDetail() {
   const [stop, setStop] = useState(null); // {item, impact}
   const [oauth, setOauth] = useState(false);
   const [busy, setBusy] = useState(null);
+  const [threadSheet, setThreadSheet] = useState(null);
 
   useEffect(() => {
     if (params.get("add") === "1") setAdding(true);
@@ -91,6 +93,136 @@ export default function SourceDetail() {
       )}
     </div>
   );
+
+  const dialogs = (
+    <>
+      <ChooseItemsDialog open={adding} onOpenChange={setAdding} wid={projectId} sid={s.id} provider={s.provider} onDone={() => { setAdding(false); reload(); }} />
+      <AddNoteDialog open={note} onOpenChange={setNote} wid={projectId} onAdded={() => reload()} />
+      <ChoiceConfirm open={!!stop} onOpenChange={(o) => !o && setStop(null)} title={`Stop reading this ${unit}?`} cta="Stop reading"
+        mobileIntro={stop && `Bracket won’t read new messages in “${stop.impact.title}”.`}
+        mobileOptions={[{ value: true, label: "Keep what Bracket learned", help: `${stop?.impact.total ?? 0} memories stay, marked “no longer read”.` }, { value: false, label: "Remove its memories", help: `${stop?.impact.only_here ?? 0} removed; ${stop?.impact.supported_elsewhere ?? 0} supported elsewhere stay.` }]}
+        intro={stop && <>“{stop.impact.title}” · {stop.impact.from || ""}{stop.impact.messages ? ` · ${stop.impact.messages} messages` : ""}<br /><br />{stop.impact.total} memories came from this {unit}. {stop.impact.supported_elsewhere} are also supported by other sources and won’t change.</>}
+        options={[
+          { value: true, label: `Keep the ${stop?.impact.only_here ?? 2} memories only this ${unit} supports`, help: "Marked “source removed”. You can still see the original quotes." },
+          { value: false, label: `Remove those ${stop?.impact.only_here ?? 2} memories`, help: "Recorded in Timeline. Restorable for 30 days." },
+        ]}
+        onConfirm={async (keep) => { const r = await v2.stopReading(projectId, s.id, stop.item.id, keep); setData((d) => ({ ...d, ...r })); setStop(null); refreshAll(); toast(`Stopped reading “${stop.impact.title}”`); }} />
+      <ChoiceConfirm open={disconnect} onOpenChange={setDisconnect}
+        title={<span className="flex items-center gap-2">{s.provider !== "notes" && <SourceMark provider={s.provider} size={16} />}{s.provider === "notes" ? "Delete all notes?" : `Disconnect ${s.label}?`}</span>}
+        intro={s.provider === "notes" ? "Notes are removed from Bracket." : `Bracket will stop reading ${items.length} ${unit}${items.length === 1 ? "" : "s"}. Draft replies can no longer be sent through ${s.label}.`}
+        cta={s.provider === "notes" ? "Delete notes" : `Disconnect ${s.label}`}
+        options={[
+          { value: true, label: "Keep what Bracket learned", help: `Recommended. ${s.impact?.total ?? s.learned?.total} memories stay, marked “source disconnected”.` },
+          { value: false, label: `Remove memories learned only from ${s.label}`, help: `${s.impact?.only_here ?? 0} memories removed; ${Math.max(0, (s.impact?.total ?? 0) - (s.impact?.only_here ?? 0))} supported by other sources stay. Recorded in Timeline.` },
+        ]}
+        onConfirm={async (keep) => {
+          const r = await v2.disconnectSource(projectId, s.id, keep);
+          setDisconnect(false); refreshAll();
+          if (mobile) { navigate(`${base}/sources`, { state: { disconnected: { sid: s.id, label: s.label, keep, kept: r.kept, removed: r.removed } } }); return; }
+          navigate(`${base}/sources`);
+          toast.success(keep ? `${s.label} disconnected · ${r.kept} memories kept, marked “source disconnected”` : `${s.label} disconnected · ${r.removed} memories removed`, {
+            duration: 10000, action: { label: "Undo", onClick: async () => { await v2.undoDisconnect(projectId, s.id); refreshAll(); toast(`${s.label} reconnected`); } },
+          });
+        }} />
+      <AnimatePresence>
+        {oauth && <OAuthRedirect provider={s.provider} account={s.account} onCancel={() => setOauth(false)} onDone={async () => { const r = await v2.reconnected(projectId, s.id); setOauth(false); setData((d) => ({ ...d, ...r })); refreshAll(); }} />}
+      </AnimatePresence>
+    </>
+  );
+
+  /* Mobile — Figma › Source detail · Gmail / Slack / Notes / Syncing / Paused / Reconnected — Mobile 390. */
+  if (mobile) {
+    const isNotes = s.provider === "notes";
+    const reconnected = s.status === "catching_up" && s.reconnected_at;
+    const stopFor = async (t) => setStop({ item: t, impact: await v2.itemImpact(projectId, s.id, t.id) });
+    return (
+      <div className="flex h-full flex-col">
+        <MobileSubHeader title={s.label} onBack={() => navigate(`${base}/sources`)}
+          actions={(
+            <Menu>
+              <MenuTrigger asChild><IconButton icon={MoreHorizontal} label="More" size="l" /></MenuTrigger>
+              <MenuContent align="end" className="w-[220px]">
+                <MenuItem icon={History} onSelect={() => navigate(`${base}/timeline?source=${s.provider}`)}>Recent activity</MenuItem>
+                {!isNotes && <MenuItem icon={ExternalLink} onSelect={() => window.open(s.provider === "gmail" ? "https://mail.google.com" : "https://slack.com", "_blank", "noopener")}>Open {s.label}</MenuItem>}
+              </MenuContent>
+            </Menu>
+          )} />
+        <div className="scroll-pane min-h-0 flex-1 px-4 pt-4 pb-6">
+          <AnimatePresence initial={false}>
+            {reconnected && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={T.base} className="overflow-hidden">
+                <div role="status" className="mb-4 flex items-start gap-3 rounded-lg border border-info/70 bg-info-bg px-4 py-3">
+                  <Info size={16} className="mt-0.5 shrink-0 text-info" />
+                  <div><p className="text-body-m text-fg">Reconnected</p><p className="text-body-s text-fg-secondary">Bracket is reading what it missed since {format(new Date(s.catching_up.since), "MMM d")}. New updates will show up for review.</p></div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <div className="flex items-center gap-3">
+            {isNotes ? <FileText size={22} className="shrink-0 text-fg-secondary" /> : <SourceMark provider={s.provider} size={26} />}
+            <div className="min-w-0">
+              <p className="truncate text-body-m text-fg">{isNotes ? "Added in Bracket" : s.account}</p>
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div key={s.status} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={T.fast}>
+                  {isNotes ? <span className="inline-flex items-center gap-2 text-[12px] text-fg-secondary"><span className="h-1.5 w-1.5 rounded-full bg-success" />Processed {format(new Date(s.last_sync_at || Date.now()), "MMM d")}</span>
+                    : s.status === "catching_up" ? <span className="inline-flex items-center gap-2 text-[12px] text-fg-secondary"><Loader2 size={14} className="animate-spin text-info" />Catching up · {s.catching_up?.done ?? 0} of {s.catching_up?.total ?? 0} emails</span>
+                      : s.status === "checking" ? <span className="inline-flex items-center gap-2 text-[12px] text-fg-secondary"><Loader2 size={14} className="animate-spin text-info" />Checking for new {s.provider === "gmail" ? "emails" : "messages"}…</span>
+                        : s.status === "paused" ? <span className="inline-flex items-center gap-2 text-[12px] text-fg-secondary"><span className="h-1.5 w-1.5 rounded-full bg-fg-tertiary" />Paused by you</span>
+                          : <SourceStatus s={s} short />}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+          {!isNotes && !disconnected && (
+            <div className="mt-4 flex gap-3">
+              {s.status === "error" ? <Button size="l" variant="primary" className="flex-1" onClick={() => setOauth(true)}>Reconnect {s.label}</Button> : (
+                <>
+                  <Button size="l" className="flex-1" icon={RefreshCw} disabled={!canEdit || s.status === "checking"} onClick={() => act("sync", () => v2.syncSource(projectId, s.id))}>Sync now</Button>
+                  <Button size="l" className="flex-1" loading={busy === "pause"} disabled={!canEdit} onClick={() => act("pause", () => (paused ? v2.resumeSource(projectId, s.id) : v2.pauseSource(projectId, s.id)))}>{paused ? "Resume" : "Pause"}</Button>
+                </>
+              )}
+            </div>
+          )}
+          <p className="eyebrow mt-6 mb-3">{isNotes ? `Notes · ${items.length}` : `Reads · ${items.length} ${unit}${items.length === 1 ? "" : "s"}`}</p>
+          <Stagger as="ul" className="overflow-hidden rounded-lg border border-line divide-y divide-line-subtle">
+            {items.map((t) => (
+              <StaggerItem as="li" key={t.id} className="flex items-center gap-3 py-2 pl-4 pr-2">
+                <button onClick={() => (isNotes ? navigate(`${base}/conversations/${t.id}`) : setThreadSheet(t))} className="min-w-0 flex-1 py-1 text-left">
+                  <span className="block truncate text-body-s text-fg">{t.subject || t.name || t.title}</span>
+                  <span className="block text-body-s text-fg-tertiary">{t.reading ? "Reading…" : isNotes ? `${format(new Date(t.at), "MMM d")} · ${t.memories} memories` : `${t.memories} memories`}</span>
+                </button>
+                <IconButton icon={MoreHorizontal} label={`${t.subject || t.name || t.title} options`} size="l" onClick={() => setThreadSheet(t)} />
+              </StaggerItem>
+            ))}
+          </Stagger>
+          {!disconnected && <Button className="mt-4" icon={Plus} disabled={!canEdit} onClick={() => (isNotes ? setNote(true) : setAdding(true))}>{kind === "channels" ? "Add channels" : isNotes ? "Add note" : "Add threads"}</Button>}
+        </div>
+        <div className="shrink-0 border-t border-line-subtle px-4 pt-3 pb-3 safe-bottom">
+          {disconnected ? <Button size="l" variant="primary" className="w-full" disabled={!canEdit} onClick={() => setOauth(true)}>Reconnect {s.label}</Button>
+            : <Button size="l" variant="danger" className="w-full" disabled={!canEdit} onClick={() => setDisconnect(true)}>{isNotes ? "Remove all notes" : `Disconnect ${s.label}`}</Button>}
+        </div>
+
+        {/* Figma › Source detail · Thread actions — Mobile 390 (73:15188) */}
+        <Sheet open={!!threadSheet} onOpenChange={(o) => !o && setThreadSheet(null)} title={threadSheet?.subject || threadSheet?.name || threadSheet?.title || ""}
+          description={threadSheet ? `${threadSheet.messages ? `${threadSheet.messages} messages · ` : ""}${threadSheet.memories} memories came from this ${unit}` : undefined}>
+          {threadSheet && (
+            <div className="-mx-1">
+              {[
+                !isNotes && [ExternalLink, `Open in ${s.label}`, () => window.open(s.provider === "gmail" ? "https://mail.google.com" : "https://slack.com", "_blank", "noopener")],
+                [Layers, "See what it taught Bracket", () => navigate(`${base}/memory?q=${encodeURIComponent((threadSheet.subject || threadSheet.name || "").replace(/^Re: /, "").split(" — ")[0])}&find=1`)],
+                [X, isNotes ? "Remove this note" : `Stop reading this ${unit}`, () => { const t = threadSheet; setThreadSheet(null); stopFor(t); }, true],
+              ].filter(Boolean).map(([Icon, l, fn, danger]) => (
+                <button key={l} onClick={fn} disabled={danger && !canEdit} className={cn("flex h-12 w-full items-center gap-3 rounded-md px-2 text-body-m hover:bg-hover disabled:opacity-40", danger ? "text-danger" : "text-fg")}>
+                  <Icon size={18} /> {l}
+                </button>
+              ))}
+            </div>
+          )}
+        </Sheet>
+        {dialogs}
+      </div>
+    );
+  }
 
   const banner = paused ? { tone: "neutral", icon: Info, text: `Paused. New ${s.label} messages aren’t being read. Nothing already learned changes.` }
     : s.status === "catching_up" && s.reconnected_at ? { tone: "success", icon: CheckCircle2, text: `${s.label} reconnected. Reading ${s.catching_up.total} emails that arrived while disconnected (since ${format(new Date(s.catching_up.since), "MMM d, HH:mm")}).` }
@@ -192,34 +324,7 @@ export default function SourceDetail() {
         </div>
       </div>
 
-      <ChooseItemsDialog open={adding} onOpenChange={setAdding} wid={projectId} sid={s.id} provider={s.provider} onDone={() => { setAdding(false); reload(); }} />
-      <AddNoteDialog open={note} onOpenChange={setNote} wid={projectId} onAdded={() => reload()} />
-      <ChoiceConfirm open={!!stop} onOpenChange={(o) => !o && setStop(null)} title={`Stop reading this ${unit}?`} cta="Stop reading"
-        intro={stop && <>“{stop.impact.title}” · {stop.impact.from || ""}{stop.impact.messages ? ` · ${stop.impact.messages} messages` : ""}<br /><br />{stop.impact.total} memories came from this {unit}. {stop.impact.supported_elsewhere} are also supported by other sources and won’t change.</>}
-        options={[
-          { value: true, label: `Keep the ${stop?.impact.only_here ?? 2} memories only this ${unit} supports`, help: "Marked “source removed”. You can still see the original quotes." },
-          { value: false, label: `Remove those ${stop?.impact.only_here ?? 2} memories`, help: "Recorded in Timeline. Restorable for 30 days." },
-        ]}
-        onConfirm={async (keep) => { const r = await v2.stopReading(projectId, s.id, stop.item.id, keep); setData((d) => ({ ...d, ...r })); setStop(null); refreshAll(); toast(`Stopped reading “${stop.impact.title}”`); }} />
-      <ChoiceConfirm open={disconnect} onOpenChange={setDisconnect}
-        title={<span className="flex items-center gap-2">{s.provider !== "notes" && <SourceMark provider={s.provider} size={16} />}{s.provider === "notes" ? "Delete all notes?" : `Disconnect ${s.label}?`}</span>}
-        intro={s.provider === "notes" ? "Notes are removed from Bracket." : `Bracket will stop reading ${items.length} ${unit}${items.length === 1 ? "" : "s"}. Draft replies can no longer be sent through ${s.label}.`}
-        cta={s.provider === "notes" ? "Delete notes" : `Disconnect ${s.label}`}
-        options={[
-          { value: true, label: "Keep what Bracket learned", help: `Recommended. ${s.impact?.total ?? s.learned?.total} memories stay, marked “source disconnected”.` },
-          { value: false, label: `Remove memories learned only from ${s.label}`, help: `${s.impact?.only_here ?? 0} memories removed; ${Math.max(0, (s.impact?.total ?? 0) - (s.impact?.only_here ?? 0))} supported by other sources stay. Recorded in Timeline.` },
-        ]}
-        onConfirm={async (keep) => {
-          const r = await v2.disconnectSource(projectId, s.id, keep);
-          setDisconnect(false); refreshAll();
-          navigate(`${base}/sources`);
-          toast.success(keep ? `${s.label} disconnected · ${r.kept} memories kept, marked “source disconnected”` : `${s.label} disconnected · ${r.removed} memories removed`, {
-            duration: 10000, action: { label: "Undo", onClick: async () => { await v2.undoDisconnect(projectId, s.id); refreshAll(); toast(`${s.label} reconnected`); } },
-          });
-        }} />
-      <AnimatePresence>
-        {oauth && <OAuthRedirect provider={s.provider} account={s.account} onCancel={() => setOauth(false)} onDone={async () => { const r = await v2.reconnected(projectId, s.id); setOauth(false); setData((d) => ({ ...d, ...r })); refreshAll(); }} />}
-      </AnimatePresence>
+      {dialogs}
     </div>
   );
 }
