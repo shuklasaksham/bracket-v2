@@ -137,6 +137,8 @@ export const v2 = {
   /* updates + search */
   updates: () => g("/v2/updates"),
   readUpdates: (ids) => p("/v2/updates/read", { ids }),
+  /* public */
+  contact: (body) => p("/v2/contact", body),
   search: (wid, q) => g(`${W(wid)}/search`, { q }),
 
   /* onboarding */

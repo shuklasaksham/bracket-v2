@@ -769,6 +769,11 @@ on("POST", "/api/v2/w/:wid/members/:mid/resend", () => ({ ok: true }));
 
 /* updates (bell) */
 on("GET", "/api/v2/updates", () => ({ items: S.updates, unread: S.updates.filter((u) => !u.read).length }));
+on("POST", "/api/v2/contact", ({ body }) => {
+  if (!body.name || !body.email || !body.message) throw new HttpError(422, "Name, email and message are required.");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) throw new HttpError(422, "Enter a valid email address.", { field: "email" });
+  return { ok: true };
+});
 on("POST", "/api/v2/updates/read", ({ body }) => { S.updates.forEach((u) => { if (!body.ids || body.ids.includes(u.id)) u.read = true; }); return { ok: true }; });
 
 /* search (⌘K) */
