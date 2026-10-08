@@ -67,6 +67,7 @@ export const v2 = {
   /* ask */
   ask: (wid, question, scope) => p(`${W(wid)}/ask`, { question, scope }),
   askHistory: (wid) => g(`${W(wid)}/ask/history`),
+  askItem: (wid, qid) => g(`${W(wid)}/ask/${qid}`),
   askFeedback: (wid, qid, body) => p(`${W(wid)}/ask/${qid}/feedback`, body),
 
   /* timeline */

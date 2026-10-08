@@ -434,24 +434,53 @@ on("POST", "/api/v2/w/:wid/messages", ({ p, body }) => {
 });
 
 /* ask */
-on("GET", "/api/v2/w/:wid/ask/history", ({ p }) => ({ items: dataFor(p.wid).askHistory || [] }));
-on("POST", "/api/v2/w/:wid/ask", ({ p, body }) => {
-  const qtext = (body.question || "").trim();
-  if (!isPrimary(p.wid) || !current().length) return { id: uid("q"), question: qtext, status: "no_answer", answer: "Bracket doesn’t have anything about this yet.", suggestion: "Connect the email or Slack channel where this was discussed, or paste a note." };
-  if (/weather|stock|bitcoin|recipe/i.test(qtext)) return { id: uid("q"), question: qtext, status: "outside", answer: "That’s outside this workspace. Bracket only answers from this workspace’s memory and connected sources." };
-  S.askHistory.unshift({ id: uid("q"), question: qtext, at: new Date().toISOString() });
-  if (/scope/i.test(qtext)) return { id: uid("q"), question: qtext, status: "answered", basis: { memories: 6, sources: 2 }, lead: "Desktop and mobile layouts for the homepage and four inner pages.",
+const askAnswers = {};
+function answerFor(wid, qtext) {
+  const id = uid("q");
+  const base = { id, question: qtext, at: new Date().toISOString() };
+  const syncing = S.workspaces[0].learning && S.sources.find((s) => s.status === "syncing" && s.progress && s.progress.done / s.progress.total < 0.5);
+  const partial = syncing ? { source: syncing.label, pct: Math.round((syncing.progress.done / syncing.progress.total) * 100) } : null;
+  if (!isPrimary(wid) || !current().length) return { ...base, status: "no_answer", title: "Bracket couldn’t find this in your sources", answer: "Nothing in your connected sources mentions this yet. If it was discussed elsewhere, add it as a note or connect the source." };
+  if (/error|fail/i.test(qtext)) return { ...base, status: "error" };
+  if (/payment|invoice schedule|weather|stock|recipe/i.test(qtext)) return { ...base, status: "no_answer", title: "Bracket couldn’t find this in your sources", answer: "Nothing in Gmail, Slack or Notes mentions a payment schedule for Acme Finance. If it was discussed elsewhere, add it as a note or connect the source." };
+  if (/launch date|when.*launch/i.test(qtext)) return { ...base, status: "conflict", basis: { memories: 4, sources: 2 }, title: "Sources disagree on the launch date",
+    answer: "Kickoff notes say Oct 17 [1]. A later Slack message from James says “end of October” [2]. Bracket hasn’t chosen one — the most recent isn’t necessarily the agreed one.",
+    sources: [{ n: 1, provider: "notes", label: "Kickoff call notes", meta: "Oct 3 · added by Maya Rao" }, { n: 2, provider: "slack", label: "#acme-redesign — James Park", meta: "Yesterday 16:40" }], partial };
+  if (/tablet/i.test(qtext) && /change|add/i.test(qtext)) return { ...base, status: "answered", kind: "list", basis: { memories: 12, sources: 3 }, lead: "Five things in memory would change:",
+    rows: [{ label: "Scope", text: "Desktop, tablet and mobile", cite: 1 }, { label: "Deliverables", text: "+ Tablet layouts for the homepage", cite: 1 }, { label: "Requirements", text: "+ Responsive at 768–1024px", cite: 1 }, { label: "Commitments", text: "Oct 17 launch is at risk", cite: 2 }, { label: "Contract", text: "Tablet isn’t in the signed SOW", cite: 3 }],
+    uncertain: "No estimate exists for tablet effort, so the new date is unknown.", confidence: "medium",
+    sources: [{ n: 1, provider: "gmail", label: "Re: Homepage direction + next steps — Sarah Chen", meta: "Today, 09:41", excerpt: "Can we include tablet layouts as well? Ideally we’d still like to keep the two-week timeline.", highlight: "Can we include tablet layouts as well?", memory: [{ category: "Scope", text: "Tablet layouts requested (pending)" }] },
+      { n: 2, provider: "notes", label: "Kickoff call notes", meta: "Oct 3 · added by Maya Rao", note_id: "n1", excerpt: S.sources.find((s) => s.id === "s_notes")?.notes?.[0]?.body, highlight: "Timeline: 2 weeks from today → launch Fri Oct 17", memory: [{ category: "Commitments", text: "Launch two weeks after kickoff — Oct 17." }] },
+      { n: 3, provider: "file", label: "SOW_signed.pdf", meta: "Page 2 · uploaded Oct 2", excerpt: "Deliverables: responsive marketing homepage (desktop, mobile) and four inner pages.", highlight: "(desktop, mobile)", memory: [{ category: "Scope", text: "Desktop and mobile layouts are included" }] }],
+    actions: [{ label: "Review the 5 changes", kind: "review", target: "r1" }, { label: "Draft a reply", kind: "reply", target: "t1" }], next: ["What would tablet cost?", "Draft a reply proposing a new date"], partial };
+  if (/scope/i.test(qtext)) return { ...base, status: "answered", basis: { memories: 6, sources: 2 }, lead: "Desktop and mobile layouts for the homepage and four inner pages.",
     paragraphs: [{ text: "The agreed scope covers desktop and mobile for the marketing homepage plus About, Pricing, Security and Contact.", cites: [1] }, { text: "Copywriting and a Webflow build with CMS are included; the blog is out of scope.", cites: [2] }, { text: "Tablet was requested today and is waiting for your review.", cites: [3] }],
     uncertain: null, confidence: "high",
-    sources: [{ n: 1, provider: "gmail", label: "Proposal — Acme Finance website", meta: "James Park · Sep 12", source_id: "s_gmail" }, { n: 2, provider: "notes", label: "Kickoff call notes", meta: "Oct 3 · added by Maya Rao", source_id: "s_notes", note_id: "n1" }, { n: 3, provider: "gmail", label: "Re: Homepage direction + next steps — Sarah Chen", meta: "Today, 09:41", source_id: "s_gmail" }],
-    next: ["What changes if we add tablet?", "What’s out of scope?"] };
-  return { id: uid("q"), question: qtext, status: "answered", basis: { memories: 39, sources: 3 }, lead: "Yes — for desktop and mobile only.",
+    sources: [{ n: 1, provider: "gmail", label: "Proposal — Acme Finance website", meta: "James Park · Sep 12", excerpt: "Attached is the proposal covering desktop and mobile. Homepage + 4 inner pages as outlined.", highlight: "Homepage + 4 inner pages as outlined.", memory: [{ category: "Scope", text: "Marketing homepage plus four inner pages" }] },
+      { n: 2, provider: "notes", label: "Kickoff call notes", meta: "Oct 3 · added by Maya Rao", excerpt: S.sources.find((s) => s.id === "s_notes")?.notes?.[0]?.body, highlight: "Build in Webflow; perf + SEO are priorities", memory: [{ category: "Scope", text: "Build in Webflow, including CMS setup" }] },
+      { n: 3, provider: "gmail", label: "Re: Homepage direction + next steps — Sarah Chen", meta: "Today, 09:41", excerpt: "Can we include tablet layouts as well?", highlight: "Can we include tablet layouts as well?", memory: [{ category: "Scope", text: "Tablet layouts requested (pending)" }] }],
+    next: ["What changes if we add tablet?", "What’s out of scope?"], partial };
+  return { ...base, status: "answered", basis: { memories: 39, sources: 3 }, lead: "Yes — for desktop and mobile only.",
     paragraphs: [{ text: "At the kickoff call on Oct 3 you agreed to launch two weeks later, on Oct 17.", cites: [1] }, { text: "Sarah confirmed the same day by email.", cites: [2] }, { text: "That estimate covered desktop and mobile. Today Sarah asked to add tablet while “keeping the two-week timeline” —", cites: [3], tail: "that combination hasn’t been agreed yet." }],
     uncertain: "No message says whether “two weeks” counts from kickoff or from design approval. Bracket assumed kickoff, because that’s how the notes describe it.", confidence: "medium",
-    sources: [{ n: 1, provider: "notes", label: "Kickoff call notes", meta: "Oct 3 · added by Maya Rao", source_id: "s_notes", note_id: "n1", excerpt: S.sources.find((s) => s.id === "s_notes")?.notes?.[0]?.body, highlight: "Timeline: 2 weeks from today → launch Fri Oct 17", attendees: "Oct 3 · Maya Rao, Sarah Chen, James Park", memory: [{ category: "Commitments", text: "Launch two weeks after kickoff — Oct 17." }] },
-      { n: 2, provider: "gmail", label: "Re: Kickoff recap — Sarah Chen", meta: "Oct 3, 18:02", source_id: "s_gmail", excerpt: "Launch on the 17th works. Friday works for mobile — thanks Maya.", highlight: "Launch on the 17th works.", memory: [{ category: "Commitments", text: "Mobile screens to Sarah by Fri Oct 10" }] },
-      { n: 3, provider: "gmail", label: "Re: Homepage direction + next steps — Sarah Chen", meta: "Today, 09:41", source_id: "s_gmail", excerpt: "Can we include tablet layouts as well? Ideally we’d still like to keep the two-week timeline.", highlight: "Ideally we’d still like to keep the two-week timeline.", memory: [{ category: "Scope", text: "Tablet layouts requested (pending)" }] }],
-    next: ["What changes if we add tablet?", "Draft a reply proposing a new date"] };
+    sources: [{ n: 1, provider: "notes", label: "Kickoff call notes", meta: "Oct 3 · added by Maya Rao", note_id: "n1", excerpt: S.sources.find((s) => s.id === "s_notes")?.notes?.[0]?.body, highlight: "Timeline: 2 weeks from today → launch Fri Oct 17", attendees: "Oct 3 · Maya Rao, Sarah Chen, James Park", memory: [{ category: "Commitments", text: "Launch two weeks after kickoff — Oct 17." }] },
+      { n: 2, provider: "gmail", label: "Re: Kickoff recap — Sarah Chen", meta: "Oct 3, 18:02", excerpt: "Launch on the 17th works. Friday works for mobile — thanks Maya.", highlight: "Launch on the 17th works.", memory: [{ category: "Commitments", text: "Mobile screens to Sarah by Fri Oct 10" }] },
+      { n: 3, provider: "gmail", label: "Re: Homepage direction + next steps — Sarah Chen", meta: "Today, 09:41", excerpt: "Can we include tablet layouts as well? Ideally we’d still like to keep the two-week timeline.", highlight: "Ideally we’d still like to keep the two-week timeline.", memory: [{ category: "Scope", text: "Tablet layouts requested (pending)" }] }],
+    next: ["What changes if we add tablet?", "Draft a reply proposing a new date"], partial };
+}
+on("GET", "/api/v2/w/:wid/ask/history", ({ p }) => ({ items: (dataFor(p.wid).askHistory || []) }));
+on("GET", "/api/v2/w/:wid/ask/:qid", ({ p }) => {
+  if (askAnswers[p.qid]) return askAnswers[p.qid];
+  const h = (S.askHistory || []).find((x) => x.id === p.qid); if (!h) throw new HttpError(404, "Question not found");
+  const a = { ...answerFor(p.wid, h.question), id: h.id, at: h.at }; askAnswers[h.id] = a; return a;
+});
+on("POST", "/api/v2/w/:wid/ask", ({ p, body }) => {
+  const qtext = (body.question || "").trim();
+  if (qtext.length < 3) throw new HttpError(400, "Ask a full question.");
+  const a = answerFor(p.wid, qtext);
+  if (a.status !== "error") { askAnswers[a.id] = a; if (isPrimary(p.wid)) S.askHistory.unshift({ id: a.id, question: qtext, at: a.at }); }
+  if (a.status === "error") throw new HttpError(503, "Bracket couldn’t answer right now.", { code: "ask_failed" });
+  return a;
 });
 on("POST", "/api/v2/w/:wid/ask/:qid/feedback", () => ({ ok: true }));
 
