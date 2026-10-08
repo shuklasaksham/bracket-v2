@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Search, ChevronDown, X, ExternalLink, History, Settings2, Download, FileText } from "lucide-react";
+import { Search, ChevronDown, X, ExternalLink, History, Settings2, Download, FileText, ListFilter, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
 import { useWorkspace, refreshAll } from "../../lib/workspace";
@@ -8,7 +8,7 @@ import { v2 } from "../../lib/api2";
 import { useResource } from "../../lib/data";
 import { useIsMobile, useMedia } from "../../lib/useMedia";
 import { Button, IconButton, Skeleton, Toggle } from "../../ui/primitives";
-import { Dialog, Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/overlays";
+import { Dialog, Menu, MenuContent, MenuItem, MenuTrigger, Sheet } from "../../ui/overlays";
 import { Chip } from "../../ui/patterns";
 import { AnimatePresence, Stagger, StaggerItem, motion, t as T, useDelayed } from "../../ui/motion";
 import { MobileSubHeader } from "../../shell/AppShell";
@@ -43,6 +43,7 @@ export default function Timeline() {
   const memOnly = params.get("memory") === "1";
   const [q, setQ] = useState(params.get("q") || "");
   const [exportOpen, setExportOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const qp = { type, source, range: range === "all" ? undefined : range, memory_only: memOnly ? "1" : undefined, q: params.get("q") || undefined };
   const list = useResource(() => v2.timeline(projectId, qp), [projectId, type, source, range, memOnly, params.get("q")]);
   useEffect(() => {
@@ -75,6 +76,15 @@ export default function Timeline() {
     <div className="flex h-full">
       <div className="scroll-pane min-w-0 flex-1">
         <div className="px-4 pt-4 pb-12 md:px-8 md:pt-6">
+          {mobile ? (
+            <div className="flex h-11 items-center">
+              <h1 className="flex-1 text-title-m text-fg">Timeline</h1>
+              <span className="relative">
+                <IconButton icon={ListFilter} label="Filter timeline" size="l" onClick={() => setFiltersOpen(true)} />
+                {(type !== "all" || source !== "all" || range !== "30d" || memOnly || q) && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-info" />}
+              </span>
+            </div>
+          ) : (<>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-title-l text-fg">Timeline</h1>
@@ -93,6 +103,7 @@ export default function Timeline() {
             <span className="flex-1" />
             <span className="flex items-center gap-2"><Toggle checked={memOnly} onChange={(v) => set("memory", v ? "1" : null)} label="Memory changes only" /><span className="text-[12px] text-fg-secondary" aria-hidden="true">Memory changes only</span></span>
           </div>
+          </>)}
 
           <div className="mt-6">
             {!list.data ? <TimelineSkel /> : groups.length === 0 ? (
@@ -105,6 +116,22 @@ export default function Timeline() {
                 {groups.map((g) => (
                   <section key={g.k}>
                     <p className="eyebrow mb-3">{g.k}</p>
+                    {mobile ? (
+                      <Stagger as="ol">
+                        {g.items.map((e) => (
+                          <StaggerItem as="li" key={e.id}>
+                            <button onClick={() => open(e.id)} className="flex w-full items-start gap-3 py-2.5 text-left active:bg-hover">
+                              <span className="w-[44px] shrink-0 pt-px font-mono text-[12px] text-fg-tertiary">{format(new Date(e.at), "HH:mm")}</span>
+                              <span className={cn("mt-[5px] h-[7px] w-[7px] shrink-0 rounded-full", e.dot ? DOT[e.dot] : "bg-white/20")} aria-hidden="true" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-body-s text-fg">{e.title}</span>
+                                <span className="block text-body-s text-fg-tertiary">{[e.actor && ["gmail", "slack"].includes(e.actor.provider) && !e.actor.label.startsWith("#") ? (e.actor.provider === "gmail" ? "Gmail" : "Slack") : null, e.actor && !["manual", "bracket"].includes(e.actor.provider) ? e.actor.label : null, e.meta].filter(Boolean).join(" · ")}</span>
+                              </span>
+                            </button>
+                          </StaggerItem>
+                        ))}
+                      </Stagger>
+                    ) : (
                     <Stagger as="ol" className="space-y-1">
                       {g.items.map((e) => (
                         <StaggerItem as="li" key={e.id}>
@@ -123,6 +150,7 @@ export default function Timeline() {
                         </StaggerItem>
                       ))}
                     </Stagger>
+                    )}
                   </section>
                 ))}
                 {list.data.has_more && <Button variant="ghost" className="w-full" onClick={() => set("range", "90d", "30d")}>Load older events</Button>}
@@ -141,6 +169,28 @@ export default function Timeline() {
       </AnimatePresence>
       {eid && !docked && !mobile && <button aria-label="Close detail" onClick={close} className="fixed inset-0 z-30 bg-overlay/50 animate-fade-in" />}
       <ExportDialog open={exportOpen} onOpenChange={setExportOpen} wid={projectId} range={range} />
+      {mobile && (
+        <Sheet open={filtersOpen} onOpenChange={setFiltersOpen} title="Filter timeline"
+          footer={<><Button variant="ghost" onClick={() => { setQ(""); setParams({}); setFiltersOpen(false); }}>Clear filters</Button><Button variant="primary" onClick={() => setFiltersOpen(false)}>Show events</Button></>}>
+          <label className="flex h-11 items-center gap-2 rounded-md border border-line-control px-3">
+            <Search size={16} className="text-fg-tertiary" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search history" aria-label="Search history" className="min-w-0 flex-1 bg-transparent text-body-m text-fg placeholder:text-fg-tertiary outline-none" />
+          </label>
+          {[["Events", TYPES, type, (v) => set("type", v, "all"), counts], ["Sources", SOURCES, source, (v) => set("source", v, "all")], ["Period", RANGES, range, (v) => set("range", v, "30d")]].map(([label, opts, val, on, cnt]) => (
+            <div key={label} className="mt-5">
+              <p className="eyebrow mb-2">{label}</p>
+              <div className="flex flex-wrap gap-2">
+                {opts.map(([k, l]) => (
+                  <button key={k} onClick={() => on(k)} className={cn("h-9 rounded-lg border px-3 text-[12px] font-medium transition-colors duration-fast", val === k ? "border-fg bg-fg text-app" : "border-line-control text-fg-secondary")}>
+                    {l}{cnt?.[k] != null ? <span className="ml-1.5 opacity-70">{cnt[k]}</span> : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="mt-5 flex items-center justify-between"><span className="text-body-m text-fg">Memory changes only</span><Toggle checked={memOnly} onChange={(v) => set("memory", v ? "1" : null)} label="Memory changes only" /></div>
+        </Sheet>
+      )}
     </div>
   );
 }
@@ -170,6 +220,8 @@ function EventDetail({ wid, eid, base, onClose, canEdit, mobile }) {
   const navigate = useNavigate();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [restored, setRestored] = useState(null);
+  useEffect(() => { setRestored(null); }, [eid]);
   useEffect(() => {
     const onKey = (ev) => { if (ev.key === "Escape" && !confirm) onClose(); };
     window.addEventListener("keydown", onKey);
@@ -182,7 +234,8 @@ function EventDetail({ wid, eid, base, onClose, canEdit, mobile }) {
       const res = await v2.restoreEvent(wid, eid);
       setConfirm(false);
       refreshAll();
-      toast.success(`Previous version restored · ${res.updated} memories updated`, { duration: 10000, action: { label: "Undo", onClick: async () => { await v2.undoRestore(wid, res.event.id); refreshAll(); toast("Restore undone"); } } });
+      if (mobile) setRestored(res);
+      else toast.success(`Previous version restored · ${res.updated} memories updated`, { duration: 10000, action: { label: "Undo", onClick: async () => { await v2.undoRestore(wid, res.event.id); refreshAll(); toast("Restore undone"); } } });
       setData({ ...e });
     } catch (err) { toast.error(err?.response?.data?.detail || "Couldn’t restore"); } finally { setBusy(false); }
   };
@@ -201,6 +254,16 @@ function EventDetail({ wid, eid, base, onClose, canEdit, mobile }) {
       <div className={cn("scroll-pane min-h-0 flex-1 px-6 pb-6", mobile && "px-4 pt-4")}>
         {!e ? <div className="space-y-3"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-24 w-full rounded-lg" /></div> : (
           <motion.div key={e.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={T.base} className="space-y-6">
+            <AnimatePresence initial={false}>
+              {restored && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={T.base} className="overflow-hidden">
+                  <div role="status" className="flex items-start gap-3 rounded-lg border border-success/70 bg-success-bg px-4 py-3">
+                    <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success" />
+                    <div><p className="text-body-m text-fg">Previous version restored</p><p className="text-body-s text-fg-secondary">{d.changes?.[0]?.before ? `${d.changes[0].category.replace(/s$/, "")} is “${d.changes[0].before.replace(/\.$/, "")}” again. ` : ""}Restored by you · just now.</p></div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <h2 className="text-title-m text-fg">{d.heading}</h2>
             <dl className="space-y-3">
               {(d.rows || [["When", d.when], d.accepted_by && ["Accepted by", d.accepted_by], d.triggered_by && ["Triggered by", d.triggered_by]].filter(Boolean)).map(([k, v]) => (
@@ -236,18 +299,28 @@ function EventDetail({ wid, eid, base, onClose, canEdit, mobile }) {
                 </div>
               </section>
             )}
-            <div className="flex flex-wrap gap-2">
+            {!mobile && <div className="flex flex-wrap gap-2">
               <Button size="s" icon={e.review_id ? FileText : ExternalLink} onClick={openSource}>{e.review_id ? "Open review" : "Open source"}</Button>
               {d.restorable && <Button size="s" variant="ghost" icon={History} onClick={() => setConfirm(true)} disabled={!canEdit}>Restore previous version</Button>}
               {d.kind === "sync" && <Button size="s" variant="ghost" icon={Settings2} onClick={() => navigate(`${base}/sources/${d.source_id}`)}>Sync settings</Button>}
-            </div>
-            {d.restorable && <p className="text-[12px] text-fg-tertiary">Restoring creates a new event; history is never deleted.</p>}
+            </div>}
+            {d.restorable && !mobile && <p className="text-[12px] text-fg-tertiary">Restoring creates a new event; history is never deleted.</p>}
           </motion.div>
         )}
       </div>
-      <Dialog open={confirm} onOpenChange={setConfirm} title="Restore the previous version?"
+      {mobile && e && (
+        <div className="flex shrink-0 gap-3 border-t border-line-subtle px-4 pt-3 pb-3 safe-bottom">
+          <Button size="l" className="flex-1" icon={e.review_id ? FileText : ExternalLink} onClick={openSource}>{e.review_id ? "Open review" : "Open source"}</Button>
+          {restored ? (
+            <Button size="l" className="flex-1" icon={History} onClick={async () => { await v2.undoRestore(wid, restored.event.id); setRestored(null); refreshAll(); toast("Restore undone"); }}>Undo restore</Button>
+          ) : d?.restorable ? (
+            <Button size="l" className="flex-1" icon={History} disabled={!canEdit} onClick={() => setConfirm(true)}>Restore</Button>
+          ) : null}
+        </div>
+      )}
+      <Dialog open={confirm} onOpenChange={setConfirm} title={mobile ? "Restore previous version?" : "Restore the previous version?"}
         description={d?.changes?.length ? `${d.changes.length} memories go back to how they were before ${format(new Date(d.when), "MMM d")}. The current version stays in history.` : ""}
-        footer={<><Button variant="ghost" onClick={() => setConfirm(false)}>Cancel</Button><Button variant="primary" icon={History} loading={busy} onClick={restore}>Restore</Button></>}>
+        footer={<><Button variant="ghost" onClick={() => setConfirm(false)}>Cancel</Button><Button variant="primary" icon={mobile ? undefined : History} loading={busy} onClick={restore}>{mobile ? "Restore previous version" : "Restore"}</Button></>}>
         <div className="space-y-2">
           {(d?.changes || []).map((c, i) => (
             <div key={i} className="rounded-md border border-line p-3 text-[12px]">

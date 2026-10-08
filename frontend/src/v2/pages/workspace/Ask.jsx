@@ -5,7 +5,7 @@ import { useWorkspace } from "../../lib/workspace";
 import { v2 } from "../../lib/api2";
 import { useResource, shortTime } from "../../lib/data";
 import { useIsMobile } from "../../lib/useMedia";
-import { Button, IconButton } from "../../ui/primitives";
+import { Button, Confidence, IconButton } from "../../ui/primitives";
 import { AskComposer, AskTurn, ASK_SUGGESTIONS, CitationView, CiteNum, useAsk } from "../../features/ask";
 import { AnimatePresence, Stagger, StaggerItem, motion, t as T } from "../../ui/motion";
 import { cn } from "../../../lib/utils";
@@ -24,6 +24,7 @@ export default function Ask() {
   const history = useResource(() => v2.askHistory(projectId), [projectId]);
   const [cite, setCite] = useState(null);
   const end = useRef(null);
+  const askedPrefill = useRef(null); // StrictMode runs effects twice — ask a prefilled question once
 
   useEffect(() => {
     const on = () => history.reload();
@@ -35,7 +36,7 @@ export default function Ask() {
     if (qid && !thread.some((x) => x.a?.id === qid)) v2.askItem(projectId, qid).then((a) => { load(a); setCite(a.sources?.[0] ? 1 : null); }).catch(() => {});
   }, [qid, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (prefill) { submit(prefill); const n = new URLSearchParams(params); n.delete("ask"); setParams(n, { replace: true }); }
+    if (prefill && askedPrefill.current !== prefill) { askedPrefill.current = prefill; submit(prefill); const n = new URLSearchParams(params); n.delete("ask"); setParams(n, { replace: true }); }
   }, [prefill]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (thread.length > 1 || thread[0]?.status === "loading") end.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [thread.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -117,7 +118,6 @@ export default function Ask() {
   if (mobile) {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex h-11 items-center px-2"><IconButton icon={X} label="Close conversation" size="l" onClick={newQuestion} /><span className="flex-1" /><IconButton icon={Plus} label="New question" size="l" onClick={newQuestion} /></div>
         <div className="scroll-pane min-h-0 flex-1 pb-6">{threadView}</div>
         {composer}
       </div>
@@ -195,6 +195,7 @@ function MobileTurn({ item, onNext, base, wid, onRetry }) {
         <div className="rounded-lg border border-line bg-surface px-3 py-3">
           <p className="text-[12px] font-medium text-fg">What Bracket isn’t sure about</p>
           <p className="mt-1 text-[12px] text-fg-tertiary">{a.uncertain}</p>
+          {a.confidence && <div className="mt-3"><Confidence level={a.confidence} /></div>}
         </div>
       )}
       {a.next?.length > 0 && (
