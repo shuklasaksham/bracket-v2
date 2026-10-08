@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutGrid, Layers, MessagesSquare, History, Plus, MessageCircleQuestion, Folder, PanelLeft, Search, Menu as MenuIcon,
-  ChevronDown, Settings as SettingsIcon, LogOut, CreditCard, Check, Bell, Unlink, Users, ShieldCheck, User, Plug,
+  ChevronDown, ArrowLeft, Settings as SettingsIcon, LogOut, CreditCard, Check, Bell, Unlink, Users, ShieldCheck, User, Plug,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../lib/utils";
@@ -102,7 +102,7 @@ function WorkspaceSwitcher({ variant = "bar" }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const chip = (
-    <span className={cn("inline-flex shrink-0 items-center justify-center rounded-md bg-raised border border-line font-semibold text-fg", variant === "bar" ? "h-6 w-6 text-[10px]" : "h-7 w-7 text-[11px]")}>
+    <span className={cn("inline-flex shrink-0 items-center justify-center rounded-md bg-raised border border-line font-semibold text-fg", variant === "bar" ? "h-6 w-6 rounded-[4px] border-0 bg-white/[0.06] text-[12px] font-bold" : "h-7 w-7 text-[11px]")}>
       {project?.initials || initialsOf(client || name)}
     </span>
   );
@@ -112,9 +112,9 @@ function WorkspaceSwitcher({ variant = "bar" }) {
         {variant === "bar" ? (
           <button className="flex min-w-0 items-center gap-2 rounded-md px-2 h-8 hover:bg-hover transition-colors duration-fast" aria-label="Switch workspace (Ctrl O)">
             {chip}
-            {client && <span className="hidden lg:inline text-body-m text-fg-tertiary truncate max-w-[160px]">{client}</span>}
-            {client && <span className="hidden lg:inline text-fg-disabled">/</span>}
-            <span className="text-body-m text-fg truncate max-w-[220px] xl:max-w-[300px]">{name}</span>
+            {client && <span className="hidden lg:inline text-[12px] text-fg-tertiary truncate max-w-[160px]">{client}</span>}
+            {client && <span className="hidden lg:inline text-[12px] text-fg-disabled">/</span>}
+            <span className="text-[12px] font-medium text-fg truncate max-w-[220px] xl:max-w-[300px]">{name}</span>
             <ChevronDown size={14} className={cn("shrink-0 text-fg-tertiary transition-transform duration-fast", open && "rotate-180")} />
           </button>
         ) : (
@@ -325,7 +325,7 @@ function TopBar({ onToggleNav, navLabel, compact }) {
   const cmd = useCommand();
   const crumbs = useCrumbs();
   return (
-    <header className={cn("flex h-16 shrink-0 items-center gap-2 border-b border-line-subtle bg-app", compact ? "h-14 px-3" : "px-4")}>
+    <header className={cn("flex shrink-0 items-center gap-2 border-b border-line-subtle bg-app", compact ? "h-14 px-3" : "h-[52px] px-4")}>
       <IconButton icon={compact ? MenuIcon : PanelLeft} label={navLabel} onClick={onToggleNav} size={compact ? "l" : "m"} />
       {compact ? (
         <div className="flex min-w-0 flex-1"><WorkspaceSwitcher variant="compact" /></div>
@@ -335,7 +335,7 @@ function TopBar({ onToggleNav, navLabel, compact }) {
           <AnimatePresence mode="popLayout" initial={false}>
             {crumbs.length > 0 && (
               <motion.span key={crumbs.join("/")} initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={T.fast}
-                className="hidden lg:flex min-w-0 items-center gap-1.5 text-body-s text-fg-tertiary">
+                className="hidden lg:flex min-w-0 items-center gap-1.5 text-[12px] text-fg-tertiary">
                 {crumbs.map((c, i) => <React.Fragment key={i}><span className="text-fg-disabled">›</span><span className="truncate">{c}</span></React.Fragment>)}
               </motion.span>
             )}
@@ -346,7 +346,7 @@ function TopBar({ onToggleNav, navLabel, compact }) {
       {!compact && (
         <button
           onClick={() => cmd.open()}
-          className="flex h-8 w-[220px] items-center gap-2 rounded-md border border-line-control/60 bg-surface pl-3 pr-2 text-body-m text-fg-tertiary hover:border-line-control hover:text-fg-secondary transition-colors duration-fast"
+          className="flex h-7 w-[220px] items-center gap-2 rounded-md border border-line-control bg-surface pl-3 pr-1 text-[12px] text-fg-tertiary hover:text-fg-secondary transition-colors duration-fast"
           aria-label="Search or jump to (Ctrl K)"
         >
           <Search size={14} />
@@ -477,6 +477,22 @@ function WorkspaceSheet({ open, onOpenChange }) {
   );
 }
 
+/* Pushed screens on mobile (Figma › Mobile sub-header): back, centred title,
+   optional ⋯ — the tab bar and workspace header are hidden. */
+const PUSH = [/\/review(\/|$)/, /\/resolve\//, /\/conversations\/[^/]+/, /\/sources\/[^/]+/, /\/files\/[^/]+/, /\/settings/, /\/timeline\/[^/]+/, /[?&]item=/, /[?&]person=/];
+export const isPushRoute = (loc) => PUSH.some((r) => r.test(loc.pathname + loc.search));
+
+export function MobileSubHeader({ title, onBack, actions }) {
+  const navigate = useNavigate();
+  return (
+    <header className="flex h-14 shrink-0 items-center gap-1 border-b border-line-subtle bg-app px-1">
+      <IconButton icon={ArrowLeft} label="Back" size="l" onClick={onBack || (() => navigate(-1))} />
+      <h1 className="min-w-0 flex-1 truncate text-center text-body-m font-medium text-fg">{title}</h1>
+      <div className="flex w-11 justify-end">{actions}</div>
+    </header>
+  );
+}
+
 /* ───────────────────────── Shell ───────────────────────── */
 export default function AppShell({ children }) {
   const mobile = useIsMobile();
@@ -508,13 +524,14 @@ export default function AppShell({ children }) {
   };
 
   if (mobile) {
+    const push = isPushRoute(location);
     return (
       <div className="bk flex h-[100dvh] flex-col bg-app">
         <DemoBar />
-        <MobileHeader onOpenSheet={() => setSheet(true)} />
-        <WorkspaceBanner />
+        {!push && <MobileHeader onOpenSheet={() => setSheet(true)} />}
+        {!push && <WorkspaceBanner />}
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
-        <TabBar />
+        {!push && <TabBar />}
         <WorkspaceSheet open={sheet} onOpenChange={setSheet} />
       </div>
     );

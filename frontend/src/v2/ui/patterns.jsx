@@ -78,7 +78,7 @@ export function Chip({ provider, label, at, onClick, to, className }) {
       )}
     >
       {provider === "notes" || provider === "file" ? <FileText size={12} className="shrink-0" /> : provider ? <SourceMark provider={provider} size={12} /> : null}
-      <span className="truncate">{label}{at ? ` · ${typeof at === "string" && at.includes("T") ? shortTime(at) : at}` : ""}</span>
+      <span className="truncate">{label}{at ? ` · ${typeof at === "string" && /^\d{4}-\d{2}-\d{2}T/.test(at) ? shortTime(at) : at}` : ""}</span>
     </Tag>
   );
 }

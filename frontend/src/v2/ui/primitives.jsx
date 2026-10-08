@@ -1,5 +1,6 @@
 import React, { forwardRef } from "react";
 import { Loader2, AlertTriangle, CheckCircle2, Info, XCircle, X, Check } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "../../lib/utils";
 import { BRAND_PATHS } from "../../lib/brandIcons";
 import { PROVIDER_META } from "../../lib/providersMeta";
@@ -95,8 +96,8 @@ export function Avatar({ name, email, src, size = "m", className }) {
   const px = size === "s" ? 24 : size === "l" ? 40 : 28;
   return (
     <span
-      className={cn("inline-flex items-center justify-center rounded-full bg-hover border border-line text-fg font-semibold shrink-0 overflow-hidden", className)}
-      style={{ width: px, height: px, fontSize: size === "l" ? 14 : 11 }}
+      className={cn("inline-flex items-center justify-center rounded-full bg-white/[0.06] border border-line text-fg font-semibold shrink-0 overflow-hidden", className)}
+      style={{ width: px, height: px, fontSize: size === "l" ? 14 : 12 }}
       aria-hidden="true"
     >
       {src ? <img src={src} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : initialsOf(name, email)}
@@ -107,7 +108,7 @@ export function Avatar({ name, email, src, size = "m", className }) {
 /* ───────────────────────── Kbd ───────────────────────── */
 export function Kbd({ children, className }) {
   return (
-    <kbd className={cn("inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-sm border border-line bg-hover font-mono text-[11px] text-fg-tertiary", className)}>
+    <kbd className={cn("inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-[4px] border border-line bg-raised font-mono text-[12px] leading-4 text-fg-tertiary", className)}>
       {children}
     </kbd>
   );
@@ -388,9 +389,14 @@ export function Toggle({ checked, onChange, label, disabled }) {
 }
 
 /* Segmented control */
+/* Figma › Segmented control: 40px, radius 8, padding 4, #101113 + white/9%
+   border; the selected segment slides (shared layout animation). */
+let _segId = 0;
 export function Segmented({ value, onChange, options, className, size = "m" }) {
+  const [id] = React.useState(() => `seg-${++_segId}`);
+  const stretch = /w-full/.test(className || "");
   return (
-    <div role="tablist" className={cn("inline-flex rounded-md border border-line bg-surface p-0.5", className)}>
+    <div role="tablist" className={cn("inline-flex rounded-lg border border-line bg-surface p-1", className)}>
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -400,13 +406,14 @@ export function Segmented({ value, onChange, options, className, size = "m" }) {
             aria-selected={active}
             onClick={() => onChange(o.value)}
             className={cn(
-              "rounded-[4px] px-2.5 font-medium transition-colors duration-fast",
-              size === "s" ? "h-6 text-body-s" : "h-7 text-body-s",
-              active ? "bg-selected text-fg border border-line" : "text-fg-tertiary hover:text-fg border border-transparent",
+              "relative rounded-md px-3 text-[12px] font-medium transition-colors duration-fast",
+              size === "s" ? "h-6" : "h-8",
+              stretch && "flex-1",
+              active ? "text-fg" : "text-fg-secondary hover:text-fg",
             )}
           >
-            {o.label}
-            {o.count !== undefined && <span className="ml-1.5 num text-fg-tertiary">{o.count}</span>}
+            {active && <motion.span layoutId={id} className="absolute inset-0 rounded-md bg-selected" transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }} />}
+            <span className="relative">{o.label}{o.count !== undefined && <span className="ml-1.5 font-mono text-fg-tertiary">{o.count}</span>}</span>
           </button>
         );
       })}
